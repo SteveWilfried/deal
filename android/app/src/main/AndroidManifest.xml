@@ -1,4 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Permission réseau (API HTTP) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Permissions image_picker -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Android < 13 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <!-- Android 13+ -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
     <application
         android:label="deal"
         android:name="${applicationName}"
@@ -37,9 +48,28 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <!-- url_launcher : texte -->
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- url_launcher : appel téléphonique -->
+        <intent>
+            <action android:name="android.intent.action.DIAL"/>
+        </intent>
+        <!-- url_launcher : SMS -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO"/>
+            <data android:scheme="smsto"/>
+        </intent>
+        <!-- url_launcher : WhatsApp (app native) -->
+        <package android:name="com.whatsapp"/>
+        <!-- url_launcher : WhatsApp Business -->
+        <package android:name="com.whatsapp.w4b"/>
+        <!-- url_launcher : navigateur web (fallback wa.me) -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
         </intent>
     </queries>
 </manifest>
