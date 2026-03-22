@@ -37,8 +37,9 @@ class PremiumBottomNavBar extends StatelessWidget {
             label: "Publier",
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline),
-            label: "Messages",
+            icon: Icon(Icons.favorite_border_rounded),
+            activeIcon: Icon(Icons.favorite_rounded),
+            label: "Favoris",
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),

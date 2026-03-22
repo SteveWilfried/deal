@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/services/auth_service.dart';
 import '../../widgets/custom_button.dart';
 import '../home/main_navigation_page.dart';
 
@@ -114,16 +116,17 @@ class AuthWelcomePage extends StatelessWidget {
                 height: 52,
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.primary, width: 1.5),
+                    side: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.5,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                   onPressed: () => Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const LoginPhonePage(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const LoginPhonePage()),
                   ),
                   child: const Text(
                     'Se connecter',
@@ -136,7 +139,94 @@ class AuthWelcomePage extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+
+              // ── Mode invité ──
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: TextButton(
+                  onPressed: () async {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('is_guest', true);
+                    if (!context.mounted) return;
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MainNavigationPage(),
+                      ),
+                      (_) => false,
+                    );
+                  },
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(
+                        Icons.person_outline_rounded,
+                        size: 18,
+                        color: AppColors.textSecondary,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Continuer en tant qu\'invité',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ── Mode Dev (à retirer en production) ──
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.orange, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.developer_mode, color: Colors.orange, size: 18),
+                  label: const Text(
+                    '⚡ Connexion Dev (sans OTP)',
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  onPressed: () async {
+                    try {
+                      final user = await AuthService.instance.loginDev();
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setString('access_token', AuthService.instance.accessToken ?? '');
+                      await prefs.setString('user_id', user.id);
+                      if (!context.mounted) return;
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MainNavigationPage()),
+                        (_) => false,
+                      );
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Erreur: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 8),
               Center(
                 child: Text(
                   'En continuant, vous acceptez nos CGU',
@@ -174,10 +264,10 @@ class _RegisterPhonePageState extends State<RegisterPhonePage> {
 
   static const List<Map<String, String>> _countries = [
     {'flag': '🇨🇲', 'name': 'Cameroun', 'code': '+237'},
-    {'flag': '🇬🇦', 'name': 'Gabon',    'code': '+241'},
-    {'flag': '🇸🇳', 'name': 'Sénégal',  'code': '+221'},
+    {'flag': '🇬🇦', 'name': 'Gabon', 'code': '+241'},
+    {'flag': '🇸🇳', 'name': 'Sénégal', 'code': '+221'},
     {'flag': '🇨🇮', 'name': 'Côte d\'Ivoire', 'code': '+225'},
-    {'flag': '🇫🇷', 'name': 'France',   'code': '+33'},
+    {'flag': '🇫🇷', 'name': 'France', 'code': '+33'},
   ];
 
   @override
@@ -191,24 +281,36 @@ class _RegisterPhonePageState extends State<RegisterPhonePage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
 
-    // TODO: Appeler votre API FastAPI → POST /auth/send-otp
-    // await ApiService.sendOtp(phone: '$_dialCode${_phoneCtl.text}');
-    await Future.delayed(const Duration(seconds: 1)); // Simulation
-
-    setState(() => _loading = false);
-
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OtpVerificationPage(
-          phone: '$_dialCode ${_phoneCtl.text}',
-          fullPhone: '$_dialCode${_phoneCtl.text}',
-          name: _nameCtl.text.trim(),
-          isLogin: false,
+    try {
+      await AuthService.instance.sendOtp('$_dialCode${_phoneCtl.text}');
+      setState(() => _loading = false);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OtpVerificationPage(
+            phone: '$_dialCode ${_phoneCtl.text}',
+            fullPhone: '$_dialCode${_phoneCtl.text}',
+            name: _nameCtl.text.trim(),
+            isLogin: false,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      setState(() => _loading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
   }
 
   void _showCountryPicker() {
@@ -234,7 +336,11 @@ class _RegisterPhonePageState extends State<RegisterPhonePage> {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: AppColors.primary),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: AppColors.primary,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -258,7 +364,11 @@ class _RegisterPhonePageState extends State<RegisterPhonePage> {
                 const SizedBox(height: 6),
                 const Text(
                   'Inscrivez-vous gratuitement avec votre numéro de téléphone.',
-                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
                 ),
 
                 const SizedBox(height: 36),
@@ -271,10 +381,14 @@ class _RegisterPhonePageState extends State<RegisterPhonePage> {
                   textCapitalization: TextCapitalization.words,
                   decoration: _inputDecoration(
                     hint: 'Ex: Jean Mballa',
-                    prefixIcon: const Icon(Icons.person_outline, color: AppColors.textSecondary),
+                    prefixIcon: const Icon(
+                      Icons.person_outline,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().length < 2) return 'Entrez votre nom complet';
+                    if (v == null || v.trim().length < 2)
+                      return 'Entrez votre nom complet';
                     return null;
                   },
                 ),
@@ -301,7 +415,9 @@ class _RegisterPhonePageState extends State<RegisterPhonePage> {
                         child: Row(
                           children: [
                             Text(
-                              _countries.firstWhere((c) => c['code'] == _dialCode)['flag']!,
+                              _countries.firstWhere(
+                                (c) => c['code'] == _dialCode,
+                              )['flag']!,
                               style: const TextStyle(fontSize: 20),
                             ),
                             const SizedBox(width: 6),
@@ -313,7 +429,11 @@ class _RegisterPhonePageState extends State<RegisterPhonePage> {
                               ),
                             ),
                             const SizedBox(width: 4),
-                            const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary, size: 20),
+                            const Icon(
+                              Icons.arrow_drop_down,
+                              color: AppColors.textSecondary,
+                              size: 20,
+                            ),
                           ],
                         ),
                       ),
@@ -326,10 +446,13 @@ class _RegisterPhonePageState extends State<RegisterPhonePage> {
                       child: TextFormField(
                         controller: _phoneCtl,
                         keyboardType: TextInputType.phone,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
                         decoration: _inputDecoration(hint: '6XX XXX XXX'),
                         validator: (v) {
-                          if (v == null || v.length < 8) return 'Numéro invalide';
+                          if (v == null || v.length < 8)
+                            return 'Numéro invalide';
                           return null;
                         },
                       ),
@@ -344,16 +467,26 @@ class _RegisterPhonePageState extends State<RegisterPhonePage> {
                   decoration: BoxDecoration(
                     color: AppColors.accent.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+                    border: Border.all(
+                      color: AppColors.accent.withOpacity(0.3),
+                    ),
                   ),
                   child: Row(
                     children: const [
-                      Icon(Icons.phone_android, size: 16, color: AppColors.accent),
+                      Icon(
+                        Icons.phone_android,
+                        size: 16,
+                        color: AppColors.accent,
+                      ),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Ce numéro sera utilisé pour MTN MoMo & Orange Money.',
-                          style: TextStyle(fontSize: 11, color: AppColors.primary, height: 1.4),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.primary,
+                            height: 1.4,
+                          ),
                         ),
                       ),
                     ],
@@ -369,18 +502,28 @@ class _RegisterPhonePageState extends State<RegisterPhonePage> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.cta,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       elevation: 0,
                     ),
                     onPressed: _loading ? null : _sendOtp,
                     child: _loading
                         ? const SizedBox(
-                            width: 22, height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : const Text(
                             'Recevoir le code SMS',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
                   ),
                 ),
@@ -396,8 +539,17 @@ class _RegisterPhonePageState extends State<RegisterPhonePage> {
                       text: const TextSpan(
                         style: TextStyle(fontSize: 13),
                         children: [
-                          TextSpan(text: 'Déjà un compte ? ', style: TextStyle(color: AppColors.textSecondary)),
-                          TextSpan(text: 'Se connecter', style: TextStyle(color: AppColors.cta, fontWeight: FontWeight.bold)),
+                          TextSpan(
+                            text: 'Déjà un compte ? ',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                          TextSpan(
+                            text: 'Se connecter',
+                            style: TextStyle(
+                              color: AppColors.cta,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -430,10 +582,10 @@ class _LoginPhonePageState extends State<LoginPhonePage> {
 
   static const List<Map<String, String>> _countries = [
     {'flag': '🇨🇲', 'name': 'Cameroun', 'code': '+237'},
-    {'flag': '🇬🇦', 'name': 'Gabon',    'code': '+241'},
-    {'flag': '🇸🇳', 'name': 'Sénégal',  'code': '+221'},
+    {'flag': '🇬🇦', 'name': 'Gabon', 'code': '+241'},
+    {'flag': '🇸🇳', 'name': 'Sénégal', 'code': '+221'},
     {'flag': '🇨🇮', 'name': 'Côte d\'Ivoire', 'code': '+225'},
-    {'flag': '🇫🇷', 'name': 'France',   'code': '+33'},
+    {'flag': '🇫🇷', 'name': 'France', 'code': '+33'},
   ];
 
   @override
@@ -446,23 +598,36 @@ class _LoginPhonePageState extends State<LoginPhonePage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
 
-    // TODO: POST /auth/send-otp
-    await Future.delayed(const Duration(seconds: 1));
-
-    setState(() => _loading = false);
-    if (!mounted) return;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OtpVerificationPage(
-          phone: '$_dialCode ${_phoneCtl.text}',
-          fullPhone: '$_dialCode${_phoneCtl.text}',
-          name: '',
-          isLogin: true,
+    try {
+      await AuthService.instance.sendOtp('$_dialCode${_phoneCtl.text}');
+      setState(() => _loading = false);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OtpVerificationPage(
+            phone: '$_dialCode ${_phoneCtl.text}',
+            fullPhone: '$_dialCode${_phoneCtl.text}',
+            name: '',
+            isLogin: true,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      setState(() => _loading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
   }
 
   void _showCountryPicker() {
@@ -488,7 +653,11 @@ class _LoginPhonePageState extends State<LoginPhonePage> {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: AppColors.primary),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: AppColors.primary,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -503,12 +672,20 @@ class _LoginPhonePageState extends State<LoginPhonePage> {
                 const SizedBox(height: 8),
                 const Text(
                   'Bon retour ! 👋',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
                   'Entrez votre numéro pour recevoir un code de connexion.',
-                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
                 ),
                 const SizedBox(height: 40),
 
@@ -530,13 +707,25 @@ class _LoginPhonePageState extends State<LoginPhonePage> {
                         child: Row(
                           children: [
                             Text(
-                              _countries.firstWhere((c) => c['code'] == _dialCode)['flag']!,
+                              _countries.firstWhere(
+                                (c) => c['code'] == _dialCode,
+                              )['flag']!,
                               style: const TextStyle(fontSize: 20),
                             ),
                             const SizedBox(width: 6),
-                            Text(_dialCode, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                            Text(
+                              _dialCode,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
                             const SizedBox(width: 4),
-                            const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary, size: 20),
+                            const Icon(
+                              Icons.arrow_drop_down,
+                              color: AppColors.textSecondary,
+                              size: 20,
+                            ),
                           ],
                         ),
                       ),
@@ -546,10 +735,13 @@ class _LoginPhonePageState extends State<LoginPhonePage> {
                       child: TextFormField(
                         controller: _phoneCtl,
                         keyboardType: TextInputType.phone,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
                         decoration: _inputDecoration(hint: '6XX XXX XXX'),
                         validator: (v) {
-                          if (v == null || v.length < 8) return 'Numéro invalide';
+                          if (v == null || v.length < 8)
+                            return 'Numéro invalide';
                           return null;
                         },
                       ),
@@ -564,13 +756,29 @@ class _LoginPhonePageState extends State<LoginPhonePage> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.cta,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       elevation: 0,
                     ),
                     onPressed: _loading ? null : _sendOtp,
                     child: _loading
-                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Text('Recevoir le code SMS', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Recevoir le code SMS',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
 
@@ -579,14 +787,25 @@ class _LoginPhonePageState extends State<LoginPhonePage> {
                   child: TextButton(
                     onPressed: () => Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (_) => const RegisterPhonePage()),
+                      MaterialPageRoute(
+                        builder: (_) => const RegisterPhonePage(),
+                      ),
                     ),
                     child: RichText(
                       text: const TextSpan(
                         style: TextStyle(fontSize: 13),
                         children: [
-                          TextSpan(text: 'Pas encore de compte ? ', style: TextStyle(color: AppColors.textSecondary)),
-                          TextSpan(text: 'S\'inscrire', style: TextStyle(color: AppColors.cta, fontWeight: FontWeight.bold)),
+                          TextSpan(
+                            text: 'Pas encore de compte ? ',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                          TextSpan(
+                            text: 'S\'inscrire',
+                            style: TextStyle(
+                              color: AppColors.cta,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -605,8 +824,8 @@ class _LoginPhonePageState extends State<LoginPhonePage> {
 //  PAGE 3 — VÉRIFICATION OTP
 // ─────────────────────────────────────────────
 class OtpVerificationPage extends StatefulWidget {
-  final String phone;       // Affiché : "+237 6XX XXX XXX"
-  final String fullPhone;   // Pour l'API : "+2376XXXXXXXX"
+  final String phone; // Affiché : "+237 6XX XXX XXX"
+  final String fullPhone; // Pour l'API : "+2376XXXXXXXX"
   final String name;
   final bool isLogin;
 
@@ -626,10 +845,14 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   static const int _otpLength = 6;
   static const int _resendDelay = 60;
 
-  final List<TextEditingController> _controllers =
-      List.generate(_otpLength, (_) => TextEditingController());
-  final List<FocusNode> _focusNodes =
-      List.generate(_otpLength, (_) => FocusNode());
+  final List<TextEditingController> _controllers = List.generate(
+    _otpLength,
+    (_) => TextEditingController(),
+  );
+  final List<FocusNode> _focusNodes = List.generate(
+    _otpLength,
+    (_) => FocusNode(),
+  );
 
   bool _loading = false;
   bool _hasError = false;
@@ -688,36 +911,61 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
   Future<void> _verifyOtp() async {
     if (_otpValue.length < _otpLength) return;
-    setState(() { _loading = true; _hasError = false; });
+    setState(() {
+      _loading = true;
+      _hasError = false;
+    });
 
-    // TODO: POST /auth/verify-otp { phone: widget.fullPhone, otp: _otpValue, name: widget.name }
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final user = await AuthService.instance.verifyOtp(
+        widget.fullPhone,
+        _otpValue,
+      );
 
-    // Simulation : code "123456" = succès
-    final success = _otpValue == '123456';
+      // Sauvegarder le token JWT
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'access_token',
+        AuthService.instance.accessToken ?? '',
+      );
+      await prefs.setString('user_id', user.id);
+      await prefs.setString('user_phone', user.phone);
 
-    setState(() => _loading = false);
+      setState(() => _loading = false);
+      if (!mounted) return;
 
-    if (!mounted) return;
-
-    if (success) {
-      // TODO: Sauvegarder le token JWT retourné par l'API
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const MainNavigationPage()),
         (_) => false,
       );
-    } else {
-      setState(() => _hasError = true);
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _hasError = true;
+      });
+      if (!mounted) return;
       for (final c in _controllers) c.clear();
       _focusNodes[0].requestFocus();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Code incorrect ou expiré'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
     }
   }
 
   Future<void> _resendOtp() async {
     if (_secondsLeft > 0) return;
-    // TODO: POST /auth/send-otp à nouveau
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      await AuthService.instance.sendOtp(widget.fullPhone);
+    } catch (_) {}
     _startTimer();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -738,12 +986,17 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: AppColors.primary),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: AppColors.primary,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -752,28 +1005,46 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
               // Icône SMS
               Container(
-                width: 60, height: 60,
+                width: 60,
+                height: 60,
                 decoration: BoxDecoration(
                   color: AppColors.cta.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Icon(Icons.sms_outlined, color: AppColors.cta, size: 30),
+                child: const Icon(
+                  Icons.sms_outlined,
+                  color: AppColors.cta,
+                  size: 30,
+                ),
               ),
 
               const SizedBox(height: 20),
               const Text(
                 'Vérification SMS',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.primary),
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
               ),
               const SizedBox(height: 8),
               RichText(
                 text: TextSpan(
-                  style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.5),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                    height: 1.5,
+                  ),
                   children: [
-                    const TextSpan(text: 'Entrez le code à 6 chiffres envoyé au\n'),
+                    const TextSpan(
+                      text: 'Entrez le code à 6 chiffres envoyé au\n',
+                    ),
                     TextSpan(
                       text: widget.phone,
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
                     ),
                   ],
                 ),
@@ -819,13 +1090,31 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.cta,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                     elevation: 0,
                   ),
-                  onPressed: (_loading || _otpValue.length < _otpLength) ? null : _verifyOtp,
+                  onPressed: (_loading || _otpValue.length < _otpLength)
+                      ? null
+                      : _verifyOtp,
                   child: _loading
-                      ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Confirmer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Confirmer',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
 
@@ -836,12 +1125,18 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                 child: _secondsLeft > 0
                     ? RichText(
                         text: TextSpan(
-                          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
                           children: [
                             const TextSpan(text: 'Renvoyer le code dans '),
                             TextSpan(
                               text: '${_secondsLeft}s',
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
                             ),
                           ],
                         ),
@@ -850,27 +1145,36 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                         onPressed: _resendOtp,
                         child: const Text(
                           'Renvoyer le code',
-                          style: TextStyle(color: AppColors.cta, fontWeight: FontWeight.bold, fontSize: 14),
+                          style: TextStyle(
+                            color: AppColors.cta,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
               ),
 
-              const Spacer(),
+              const SizedBox(height: 16),
 
-              // Astuce démo
+              // Info SMS
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.06),
+                  color: AppColors.cta.withOpacity(0.06),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   children: const [
-                    Icon(Icons.developer_mode, size: 16, color: AppColors.textSecondary),
+                    Icon(Icons.info_outline, size: 16, color: AppColors.cta),
                     SizedBox(width: 8),
-                    Text(
-                      'Mode démo : utilisez le code 123456',
-                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    Expanded(
+                      child: Text(
+                        'Le SMS peut prendre quelques secondes. Vérifiez aussi vos spams.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -938,7 +1242,9 @@ class _OtpBox extends StatelessWidget {
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: hasError ? Colors.red.withOpacity(0.5) : const Color(0xFFE5E7EB),
+                color: hasError
+                    ? Colors.red.withOpacity(0.5)
+                    : const Color(0xFFE5E7EB),
                 width: 1.5,
               ),
             ),
@@ -981,18 +1287,40 @@ class _CountryPickerSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2))),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE5E7EB),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           const SizedBox(height: 16),
-          const Text('Choisir un pays', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primary)),
+          const Text(
+            'Choisir un pays',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+          ),
           const SizedBox(height: 16),
           ...countries.map((c) {
             final isSelected = c['code'] == selected;
             return ListTile(
               onTap: () => onSelect(c['code']!),
               leading: Text(c['flag']!, style: const TextStyle(fontSize: 24)),
-              title: Text(c['name']!, style: const TextStyle(fontWeight: FontWeight.w600)),
-              trailing: Text(c['code']!, style: const TextStyle(color: AppColors.textSecondary)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              title: Text(
+                c['name']!,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              trailing: Text(
+                c['code']!,
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               tileColor: isSelected ? AppColors.cta.withOpacity(0.08) : null,
             );
           }),
@@ -1013,7 +1341,10 @@ InputDecoration _inputDecoration({required String hint, Widget? prefixIcon}) {
     filled: true,
     fillColor: AppColors.surface,
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -1041,7 +1372,11 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primary),
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: AppColors.primary,
+      ),
     );
   }
 }

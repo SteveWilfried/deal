@@ -2,6 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/services/api_service.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../core/services/deal_service.dart';
+import '../../../core/services/upload_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../widgets/custom_textfield.dart';
 
@@ -15,6 +20,7 @@ class DealDraft {
 
   // Étape 2
   List<File> photos = [];
+  bool aiGenerated = false; // true si le contenu a été généré par l'IA
 
   // Étape 3
   String title = '';
@@ -22,6 +28,7 @@ class DealDraft {
 
   // Étape 4
   String price = '';
+  String suggestedPrice = ''; // Prix suggéré par l'IA
   String city = '';
   String condition = 'Neuf'; // Neuf | Occasion | Reconditionné
 
@@ -35,21 +42,30 @@ class DealDraft {
 // ─────────────────────────────────────────────
 const List<Map<String, dynamic>> kCategories = [
   {'id': 'electronics', 'label': 'Électronique', 'icon': Icons.phone_iphone},
-  {'id': 'immobilier',  'label': 'Immobilier',   'icon': Icons.home},
-  {'id': 'auto',        'label': 'Auto / Moto',  'icon': Icons.directions_car},
-  {'id': 'services',    'label': 'Services',     'icon': Icons.design_services},
-  {'id': 'mode',        'label': 'Mode',         'icon': Icons.shopping_bag},
-  {'id': 'maison',      'label': 'Maison',       'icon': Icons.chair},
-  {'id': 'emploi',      'label': 'Emploi',       'icon': Icons.work_outline},
-  {'id': 'loisirs',     'label': 'Loisirs',      'icon': Icons.sports_esports},
-  {'id': 'animaux',     'label': 'Animaux',      'icon': Icons.pets},
-  {'id': 'autre',       'label': 'Autre',        'icon': Icons.category_outlined},
+  {'id': 'immobilier', 'label': 'Immobilier', 'icon': Icons.home},
+  {'id': 'auto', 'label': 'Auto / Moto', 'icon': Icons.directions_car},
+  {'id': 'services', 'label': 'Services', 'icon': Icons.design_services},
+  {'id': 'mode', 'label': 'Mode', 'icon': Icons.shopping_bag},
+  {'id': 'maison', 'label': 'Maison', 'icon': Icons.chair},
+  {'id': 'emploi', 'label': 'Emploi', 'icon': Icons.work_outline},
+  {'id': 'loisirs', 'label': 'Loisirs', 'icon': Icons.sports_esports},
+  {'id': 'animaux', 'label': 'Animaux', 'icon': Icons.pets},
+  {'id': 'autre', 'label': 'Autre', 'icon': Icons.category_outlined},
 ];
 
 const List<String> kCities = [
-  'Douala', 'Yaoundé', 'Bafoussam', 'Garoua', 'Bamenda',
-  'Maroua', 'Ngaoundéré', 'Bertoua', 'Ebolowa', 'Kribi',
-  'Libreville', 'Port-Gentil',
+  'Douala',
+  'Yaoundé',
+  'Bafoussam',
+  'Garoua',
+  'Bamenda',
+  'Maroua',
+  'Ngaoundéré',
+  'Bertoua',
+  'Ebolowa',
+  'Kribi',
+  'Libreville',
+  'Port-Gentil',
 ];
 
 // ─────────────────────────────────────────────
@@ -67,6 +83,7 @@ class _PublishDealPageState extends State<PublishDealPage>
   int _currentStep = 0;
   final int _totalSteps = 5;
   final DealDraft _draft = DealDraft();
+  bool _isSubmitting = false;
 
   late final AnimationController _progressController;
   late Animation<double> _progressAnim;
@@ -82,8 +99,9 @@ class _PublishDealPageState extends State<PublishDealPage>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-    _progressAnim = Tween<double>(begin: 0, end: 1 / _totalSteps)
-        .animate(CurvedAnimation(parent: _progressController, curve: Curves.easeOut));
+    _progressAnim = Tween<double>(begin: 0, end: 1 / _totalSteps).animate(
+      CurvedAnimation(parent: _progressController, curve: Curves.easeOut),
+    );
     _progressController.forward();
   }
 
@@ -95,10 +113,10 @@ class _PublishDealPageState extends State<PublishDealPage>
 
   void _animateProgress(int nextStep) {
     final target = (nextStep + 1) / _totalSteps;
-    _progressAnim = Tween<double>(
-      begin: _progressAnim.value,
-      end: target,
-    ).animate(CurvedAnimation(parent: _progressController, curve: Curves.easeOut));
+    _progressAnim = Tween<double>(begin: _progressAnim.value, end: target)
+        .animate(
+          CurvedAnimation(parent: _progressController, curve: Curves.easeOut),
+        );
     _progressController
       ..reset()
       ..forward();
@@ -139,11 +157,68 @@ class _PublishDealPageState extends State<PublishDealPage>
   }
 
   void _submit() {
-    // TODO: Envoyer _draft à l'API FastAPI
-    showDialog(
-      context: context,
-      builder: (_) => _SuccessDialog(draft: _draft),
-    );
+    _submitAsync();
+  }
+
+  Future<void> _submitAsync() async {
+    // Vérifier que l'utilisateur est connecté
+    final user = AuthService.instance.currentUser;
+    if (user == null) {
+      _showSnack('Connectez-vous pour publier une annonce.');
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      // 1. Upload des photos
+      List<String> imageUrls = [];
+      if (AppConfig.useRealBackend && _draft.photos.isNotEmpty) {
+        _showSnack('Upload des photos en cours…');
+        imageUrls = await UploadService.instance.uploadImages(_draft.photos);
+        if (imageUrls.isEmpty) {
+          _showSnack('Erreur lors de l\'upload des photos. Réessayez.');
+          setState(() => _isSubmitting = false);
+          return;
+        }
+      }
+
+      // 2. Créer le deal sur l'API
+      await DealService.instance.createDeal(
+        title:          _draft.title,
+        description:    _draft.description,
+        price:          int.parse(_draft.price),
+        category:       _draft.categoryLabel ?? 'Autre',
+        condition:      _draft.condition,
+        city:           _draft.city,
+        images:         imageUrls,
+        resellable:     _draft.availableForResellers,
+        wholesalePrice: _draft.wholesalePrice != null && _draft.wholesalePrice!.isNotEmpty
+            ? int.tryParse(_draft.wholesalePrice!)
+            : null,
+        isFlash: false,
+      );
+
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+
+      // 3. Succès → dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _SuccessDialog(draft: _draft),
+      );
+    } on ApiException catch (e) {
+      setState(() => _isSubmitting = false);
+      _showSnack(e.userMessage);
+    } on NetworkException catch (_) {
+      setState(() => _isSubmitting = false);
+      _showSnack('Pas de connexion. Vérifiez votre réseau.');
+    } catch (e) {
+      setState(() => _isSubmitting = false);
+      _showSnack('Une erreur est survenue. Réessayez.');
+      debugPrint('_submitAsync error: $e');
+    }
   }
 
   void _showSnack(String msg) {
@@ -188,10 +263,13 @@ class _PublishDealPageState extends State<PublishDealPage>
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 transitionBuilder: (child, anim) => SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0.08, 0),
-                    end: Offset.zero,
-                  ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
+                  position:
+                      Tween<Offset>(
+                        begin: const Offset(0.08, 0),
+                        end: Offset.zero,
+                      ).animate(
+                        CurvedAnimation(parent: anim, curve: Curves.easeOut),
+                      ),
                   child: FadeTransition(opacity: anim, child: child),
                 ),
                 child: KeyedSubtree(
@@ -278,12 +356,26 @@ class _PublishDealPageState extends State<PublishDealPage>
   // ──────────────────────── STEPS ────────────────────────
   Widget _buildCurrentStep() {
     switch (_currentStep) {
-      case 0: return _Step1Category(draft: _draft, onChanged: () => setState(() {}));
-      case 1: return _Step2Photos(draft: _draft, onChanged: () => setState(() {}));
-      case 2: return _Step3Description(formKey: _step3Key, draft: _draft);
-      case 3: return _Step4PriceLocation(formKey: _step4Key, draft: _draft, onChanged: () => setState(() {}));
-      case 4: return _Step5Options(formKey: _step5Key, draft: _draft, onChanged: () => setState(() {}));
-      default: return const SizedBox();
+      case 0:
+        return _Step1Category(draft: _draft, onChanged: () => setState(() {}));
+      case 1:
+        return _Step2Photos(draft: _draft, onChanged: () => setState(() {}));
+      case 2:
+        return _Step3Description(formKey: _step3Key, draft: _draft);
+      case 3:
+        return _Step4PriceLocation(
+          formKey: _step4Key,
+          draft: _draft,
+          onChanged: () => setState(() {}),
+        );
+      case 4:
+        return _Step5Options(
+          formKey: _step5Key,
+          draft: _draft,
+          onChanged: () => setState(() {}),
+        );
+      default:
+        return const SizedBox();
     }
   }
 
@@ -294,33 +386,56 @@ class _PublishDealPageState extends State<PublishDealPage>
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, -2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, -2),
+          ),
+        ],
       ),
       child: SizedBox(
         width: double.infinity,
         height: 52,
         child: ElevatedButton(
-          onPressed: _goNext,
+          onPressed: _isSubmitting ? null : _goNext,
           style: ElevatedButton.styleFrom(
             backgroundColor: isLast ? AppColors.accent : AppColors.cta,
             foregroundColor: isLast ? AppColors.primary : Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            disabledBackgroundColor: AppColors.cta.withOpacity(0.5),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             elevation: 0,
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                isLast ? 'Publier le deal' : 'Continuer',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                isLast ? Icons.check_circle_outline : Icons.arrow_forward_rounded,
-                size: 20,
-              ),
-            ],
-          ),
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      isLast ? 'Publier le deal' : 'Continuer',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      isLast
+                          ? Icons.check_circle_outline
+                          : Icons.arrow_forward_rounded,
+                      size: 20,
+                    ),
+                  ],
+                ),
         ),
       ),
     );
@@ -364,7 +479,9 @@ class _Step1Category extends StatelessWidget {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   decoration: BoxDecoration(
-                    color: selected ? AppColors.cta.withOpacity(0.12) : AppColors.surface,
+                    color: selected
+                        ? AppColors.cta.withOpacity(0.12)
+                        : AppColors.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: selected ? AppColors.cta : Colors.transparent,
@@ -385,7 +502,9 @@ class _Step1Category extends StatelessWidget {
                     children: [
                       Icon(
                         cat['icon'] as IconData,
-                        color: selected ? AppColors.cta : AppColors.textSecondary,
+                        color: selected
+                            ? AppColors.cta
+                            : AppColors.textSecondary,
                         size: 30,
                       ),
                       const SizedBox(height: 8),
@@ -464,22 +583,31 @@ class _Step2PhotosState extends State<_Step2Photos> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         padding: EdgeInsets.fromLTRB(
-            20, 16, 20, MediaQuery.of(context).padding.bottom + 20),
+          20,
+          16,
+          20,
+          MediaQuery.of(context).padding.bottom + 20,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
-                  color: const Color(0xFFE5E7EB),
-                  borderRadius: BorderRadius.circular(2)),
+                color: const Color(0xFFE5E7EB),
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             const SizedBox(height: 16),
-            const Text('Ajouter une photo',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: AppColors.primary)),
+            const Text(
+              'Ajouter une photo',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: AppColors.primary,
+              ),
+            ),
             const SizedBox(height: 16),
             ListTile(
               onTap: () {
@@ -487,19 +615,25 @@ class _Step2PhotosState extends State<_Step2Photos> {
                 _pickPhoto(ImageSource.gallery);
               },
               leading: Container(
-                width: 42, height: 42,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: AppColors.cta.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.photo_library_outlined,
-                    color: AppColors.cta),
+                child: const Icon(
+                  Icons.photo_library_outlined,
+                  color: AppColors.cta,
+                ),
               ),
-              title: const Text('Galerie photo',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+              title: const Text(
+                'Galerie photo',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
               subtitle: const Text('Choisir depuis vos photos'),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             ListTile(
               onTap: () {
@@ -507,19 +641,25 @@ class _Step2PhotosState extends State<_Step2Photos> {
                 _pickPhoto(ImageSource.camera);
               },
               leading: Container(
-                width: 42, height: 42,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.camera_alt_outlined,
-                    color: AppColors.primary),
+                child: const Icon(
+                  Icons.camera_alt_outlined,
+                  color: AppColors.primary,
+                ),
               ),
-              title: const Text('Appareil photo',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+              title: const Text(
+                'Appareil photo',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
               subtitle: const Text('Prendre une nouvelle photo'),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ],
         ),
@@ -528,13 +668,15 @@ class _Step2PhotosState extends State<_Step2Photos> {
   }
 
   void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: AppColors.primary,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(16),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   @override
@@ -544,26 +686,44 @@ class _Step2PhotosState extends State<_Step2Photos> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Conseil
+          // Conseil + bouton IA
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.accent.withOpacity(0.1),
+              color: AppColors.accent.withOpacity(0.08),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+              border: Border.all(color: AppColors.accent.withOpacity(0.25)),
             ),
             child: Row(
               children: const [
-                Icon(Icons.lightbulb_outline, color: AppColors.accent, size: 20),
+                Icon(
+                  Icons.lightbulb_outline,
+                  color: AppColors.accent,
+                  size: 20,
+                ),
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Les annonces avec 3+ photos reçoivent 70% plus de contacts.',
-                    style: TextStyle(fontSize: 12, color: AppColors.primary, height: 1.4),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.primary,
+                      height: 1.4,
+                    ),
                   ),
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 16),
+
+          // Bouton Agent IA
+          _AiGenerateButton(
+            draft: widget.draft,
+            onGenerated: () {
+              setState(() {});
+              widget.onChanged();
+            },
           ),
           const SizedBox(height: 24),
 
@@ -588,11 +748,16 @@ class _Step2PhotosState extends State<_Step2Photos> {
                     color: hasPhoto ? null : AppColors.surface,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: hasPhoto ? Colors.transparent : const Color(0xFFE5E7EB),
+                      color: hasPhoto
+                          ? Colors.transparent
+                          : const Color(0xFFE5E7EB),
                       width: 1.5,
                     ),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6),
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 6,
+                      ),
                     ],
                   ),
                   child: hasPhoto
@@ -610,31 +775,45 @@ class _Step2PhotosState extends State<_Step2Photos> {
                             // Badge couverture
                             if (isFirst)
                               Positioned(
-                                bottom: 4, left: 4,
+                                bottom: 4,
+                                left: 4,
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: AppColors.cta,
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: const Text(
                                     'Couverture',
-                                    style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ),
                             // Bouton supprimer
                             Positioned(
-                              top: 4, right: 4,
+                              top: 4,
+                              right: 4,
                               child: GestureDetector(
                                 onTap: () => _removePhoto(i),
                                 child: Container(
-                                  width: 22, height: 22,
+                                  width: 22,
+                                  height: 22,
                                   decoration: const BoxDecoration(
                                     color: Colors.red,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.close, color: Colors.white, size: 14),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
                                 ),
                               ),
                             ),
@@ -644,15 +823,23 @@ class _Step2PhotosState extends State<_Step2Photos> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              i == 0 ? Icons.add_photo_alternate_outlined : Icons.add,
-                              color: i == 0 ? AppColors.cta : AppColors.textSecondary,
+                              i == 0
+                                  ? Icons.add_photo_alternate_outlined
+                                  : Icons.add,
+                              color: i == 0
+                                  ? AppColors.cta
+                                  : AppColors.textSecondary,
                               size: i == 0 ? 32 : 24,
                             ),
                             if (i == 0) ...[
                               const SizedBox(height: 6),
                               const Text(
                                 'Ajouter',
-                                style: TextStyle(fontSize: 11, color: AppColors.cta, fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.cta,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           ],
@@ -714,65 +901,177 @@ class _Step3DescriptionState extends State<_Step3Description> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const _SectionLabel(icon: Icons.title, text: 'Titre de l\'annonce'),
+            // Badge "généré par IA" si applicable
+            if (widget.draft.aiGenerated) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6A1B9A), Color(0xFF1565C0)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Contenu généré par l\'IA Ndokoti — Modifiez si nécessaire',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        widget.draft.aiGenerated = false;
+                        _titleCtl.clear();
+                        _descCtl.clear();
+                        widget.draft.title = '';
+                        widget.draft.description = '';
+                      }),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Effacer',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            Row(
+              children: [
+                const _SectionLabel(
+                  icon: Icons.title,
+                  text: 'Titre de l\'annonce',
+                ),
+                const Spacer(),
+                // Compteur caractères
+                Text(
+                  '${_titleCtl.text.length}/100',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             CustomTextField(
               controller: _titleCtl,
               hintText: 'Ex: Samsung Galaxy A14 128Go — État neuf',
               maxLines: 1,
               textCapitalization: TextCapitalization.sentences,
-              onChanged: (v) => widget.draft.title = v,
+              onChanged: (v) {
+                widget.draft.title = v;
+                setState(() {});
+              },
               validator: (v) {
-                if (v == null || v.trim().length < 5) return 'Titre trop court (5 caractères min)';
-                if (v.trim().length > 100) return 'Titre trop long (100 caractères max)';
+                if (v == null || v.trim().length < 5)
+                  return 'Titre trop court (5 caractères min)';
+                if (v.trim().length > 100)
+                  return 'Titre trop long (100 caractères max)';
                 return null;
               },
             ),
-            const SizedBox(height: 6),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                '${_titleCtl.text.length}/100',
-                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-              ),
-            ),
 
             const SizedBox(height: 24),
-            const _SectionLabel(icon: Icons.description_outlined, text: 'Description'),
+            const _SectionLabel(
+              icon: Icons.description_outlined,
+              text: 'Description',
+            ),
             const SizedBox(height: 8),
             CustomTextField(
               controller: _descCtl,
-              hintText: 'Décrivez l\'état, les caractéristiques, ce qui est inclus...',
+              hintText:
+                  'Décrivez l\'état, les caractéristiques, ce qui est inclus...',
               maxLines: 6,
               textCapitalization: TextCapitalization.sentences,
               onChanged: (v) => widget.draft.description = v,
               validator: (v) {
-                if (v == null || v.trim().length < 20) return 'Description trop courte (20 caractères min)';
+                if (v == null || v.trim().length < 20)
+                  return 'Description trop courte (20 caractères min)';
                 return null;
               },
             ),
 
             const SizedBox(height: 20),
-            // Conseils rédaction
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
+            // Bouton régénérer avec IA (si photos disponibles)
+            if (widget.draft.photos.isNotEmpty)
+              _AiGenerateButton(
+                draft: widget.draft,
+                label: widget.draft.aiGenerated
+                    ? '✦ Régénérer avec l\'IA'
+                    : '✦ Générer avec l\'IA',
+                onGenerated: () => setState(() {
+                  _titleCtl.text = widget.draft.title;
+                  _descCtl.text = widget.draft.description;
+                }),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text('💡 Conseils pour une bonne annonce',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary)),
-                  SizedBox(height: 8),
-                  _Tip(text: 'Précisez l\'état exact du produit'),
-                  _Tip(text: 'Mentionnez ce qui est inclus (facture, accessoires...)'),
-                  _Tip(text: 'Indiquez la raison de la vente si c\'est d\'occasion'),
-                  _Tip(text: 'Évitez le tout-majuscules et les fautes'),
-                ],
+
+            const SizedBox(height: 20),
+            // Conseils rédaction (si pas d'IA)
+            if (!widget.draft.aiGenerated)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      '💡 Conseils pour une bonne annonce',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    _Tip(text: 'Précisez l\'état exact du produit'),
+                    _Tip(
+                      text:
+                          'Mentionnez ce qui est inclus (facture, accessoires...)',
+                    ),
+                    _Tip(
+                      text:
+                          'Indiquez la raison de la vente si c\'est d\'occasion',
+                    ),
+                    _Tip(text: 'Évitez le tout-majuscules et les fautes'),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -824,6 +1123,84 @@ class _Step4PriceLocationState extends State<_Step4PriceLocation> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── Suggestion de prix IA ──
+            if (widget.draft.suggestedPrice.isNotEmpty) ...[
+              GestureDetector(
+                onTap: () {
+                  _priceCtl.text = widget.draft.suggestedPrice;
+                  widget.draft.price = widget.draft.suggestedPrice;
+                  setState(() {});
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6A1B9A), Color(0xFF1565C0)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.auto_awesome_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Prix suggéré par l\'IA',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Text(
+                              '${int.parse(widget.draft.suggestedPrice).toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]} ')} FCFA',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Appliquer',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             // ── PRIX ──
             const _SectionLabel(icon: Icons.payments_outlined, text: 'Prix'),
             const SizedBox(height: 8),
@@ -845,8 +1222,13 @@ class _Step4PriceLocationState extends State<_Step4PriceLocation> {
                   fontWeight: FontWeight.bold,
                   color: AppColors.primary,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -871,7 +1253,10 @@ class _Step4PriceLocationState extends State<_Step4PriceLocation> {
             const SizedBox(height: 24),
 
             // ── ÉTAT DU PRODUIT ──
-            const _SectionLabel(icon: Icons.star_outline, text: 'État du produit'),
+            const _SectionLabel(
+              icon: Icons.star_outline,
+              text: 'État du produit',
+            ),
             const SizedBox(height: 10),
             Row(
               children: _conditions.map((cond) {
@@ -890,7 +1275,9 @@ class _Step4PriceLocationState extends State<_Step4PriceLocation> {
                         color: selected ? AppColors.primary : AppColors.surface,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: selected ? AppColors.primary : const Color(0xFFE5E7EB),
+                          color: selected
+                              ? AppColors.primary
+                              : const Color(0xFFE5E7EB),
                         ),
                       ),
                       child: Text(
@@ -899,7 +1286,9 @@ class _Step4PriceLocationState extends State<_Step4PriceLocation> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: selected ? Colors.white : AppColors.textSecondary,
+                          color: selected
+                              ? Colors.white
+                              : AppColors.textSecondary,
                         ),
                       ),
                     ),
@@ -911,7 +1300,10 @@ class _Step4PriceLocationState extends State<_Step4PriceLocation> {
             const SizedBox(height: 24),
 
             // ── VILLE ──
-            const _SectionLabel(icon: Icons.location_on_outlined, text: 'Ville'),
+            const _SectionLabel(
+              icon: Icons.location_on_outlined,
+              text: 'Ville',
+            ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
               value: widget.draft.city.isEmpty ? null : widget.draft.city,
@@ -922,9 +1314,17 @@ class _Step4PriceLocationState extends State<_Step4PriceLocation> {
                 widget.onChanged();
               },
               decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.location_city_outlined, color: AppColors.textSecondary),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                prefixIcon: const Icon(
+                  Icons.location_city_outlined,
+                  color: AppColors.textSecondary,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -934,10 +1334,11 @@ class _Step4PriceLocationState extends State<_Step4PriceLocation> {
                   borderSide: const BorderSide(color: AppColors.cta, width: 2),
                 ),
               ),
-              items: kCities.map((city) => DropdownMenuItem(
-                value: city,
-                child: Text(city),
-              )).toList(),
+              items: kCities
+                  .map(
+                    (city) => DropdownMenuItem(value: city, child: Text(city)),
+                  )
+                  .toList(),
             ),
           ],
         ),
@@ -970,7 +1371,9 @@ class _Step5OptionsState extends State<_Step5Options> {
   @override
   void initState() {
     super.initState();
-    _wholesaleCtl = TextEditingController(text: widget.draft.wholesalePrice ?? '');
+    _wholesaleCtl = TextEditingController(
+      text: widget.draft.wholesalePrice ?? '',
+    );
   }
 
   @override
@@ -994,7 +1397,10 @@ class _Step5OptionsState extends State<_Step5Options> {
             const SizedBox(height: 28),
 
             // ── Programme Revendeur ──
-            const _SectionLabel(icon: Icons.people_outline, text: 'Programme Revendeur'),
+            const _SectionLabel(
+              icon: Icons.people_outline,
+              text: 'Programme Revendeur',
+            ),
             const SizedBox(height: 12),
             Container(
               decoration: BoxDecoration(
@@ -1018,7 +1424,10 @@ class _Step5OptionsState extends State<_Step5Options> {
                     activeColor: AppColors.accent,
                     title: const Text(
                       'Permettre la revente',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                     subtitle: const Text(
                       'Les revendeurs pourront lister ce produit avec leur propre marge.',
@@ -1034,19 +1443,27 @@ class _Step5OptionsState extends State<_Step5Options> {
                         children: [
                           const Text(
                             'Prix de gros (pour les revendeurs)',
-                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
                           ),
                           const SizedBox(height: 8),
                           TextFormField(
                             controller: _wholesaleCtl,
                             keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                             onChanged: (v) => widget.draft.wholesalePrice = v,
                             validator: (v) {
-                              if (!widget.draft.availableForResellers) return null;
-                              if (v == null || v.isEmpty) return 'Entrez le prix de gros';
+                              if (!widget.draft.availableForResellers)
+                                return null;
+                              if (v == null || v.isEmpty)
+                                return 'Entrez le prix de gros';
                               final gros = int.tryParse(v) ?? 0;
-                              final public = int.tryParse(widget.draft.price) ?? 0;
+                              final public =
+                                  int.tryParse(widget.draft.price) ?? 0;
                               if (public > 0 && gros >= public) {
                                 return 'Le prix de gros doit être inférieur au prix public';
                               }
@@ -1055,18 +1472,32 @@ class _Step5OptionsState extends State<_Step5Options> {
                             decoration: InputDecoration(
                               hintText: '0',
                               suffixText: 'FCFA',
-                              suffixStyle: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
-                              helperText: 'Les revendeurs ajouteront leur marge par-dessus',
+                              suffixStyle: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                              helperText:
+                                  'Les revendeurs ajouteront leur marge par-dessus',
                               helperStyle: const TextStyle(fontSize: 11),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE5E7EB),
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: const BorderSide(color: AppColors.accent, width: 2),
+                                borderSide: const BorderSide(
+                                  color: AppColors.accent,
+                                  width: 2,
+                                ),
                               ),
                             ),
                           ),
@@ -1084,19 +1515,33 @@ class _Step5OptionsState extends State<_Step5Options> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.info_outline, size: 16, color: AppColors.textSecondary),
+                const Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: AppColors.textSecondary,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: RichText(
                     text: const TextSpan(
-                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.5),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                        height: 1.5,
+                      ),
                       children: [
                         TextSpan(text: 'En publiant, vous acceptez les '),
                         TextSpan(
                           text: 'Conditions d\'utilisation',
-                          style: TextStyle(color: AppColors.cta, decoration: TextDecoration.underline),
+                          style: TextStyle(
+                            color: AppColors.cta,
+                            decoration: TextDecoration.underline,
+                          ),
                         ),
-                        TextSpan(text: ' de Ndokoti. Toute annonce frauduleuse entraîne la suspension du compte.'),
+                        TextSpan(
+                          text:
+                              ' de Ndokoti. Toute annonce frauduleuse entraîne la suspension du compte.',
+                        ),
                       ],
                     ),
                   ),
@@ -1125,7 +1570,11 @@ class _Step5OptionsState extends State<_Step5Options> {
         children: [
           const Text(
             'Récapitulatif de votre deal',
-            style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 12),
           _SummaryRow(
@@ -1144,8 +1593,8 @@ class _Step5OptionsState extends State<_Step5Options> {
             value: widget.draft.price.isEmpty
                 ? '—'
                 : widget.draft.price == '0'
-                    ? 'Prix à débattre'
-                    : '${widget.draft.price} FCFA',
+                ? 'Prix à débattre'
+                : '${widget.draft.price} FCFA',
           ),
           _SummaryRow(
             icon: Icons.location_on_outlined,
@@ -1181,23 +1630,36 @@ class _SuccessDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 72, height: 72,
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
                 color: AppColors.cta.withOpacity(0.12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check_circle_outline, color: AppColors.cta, size: 40),
+              child: const Icon(
+                Icons.check_circle_outline,
+                color: AppColors.cta,
+                size: 40,
+              ),
             ),
             const SizedBox(height: 20),
             const Text(
               'Deal publié ! 🎉',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primary),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               '"${draft.title.isEmpty ? 'Votre annonce' : draft.title}" est maintenant en ligne sur Ndokoti.',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5),
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -1205,25 +1667,35 @@ class _SuccessDialog extends StatelessWidget {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.cta,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 onPressed: () {
+                  DealService.instance.invalidateCache();
                   Navigator.of(context)
                     ..pop() // ferme dialog
                     ..pop(); // retour home
                 },
-                child: const Text('Voir mon annonce', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Voir mon annonce',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ),
             const SizedBox(height: 10),
             TextButton(
               onPressed: () {
+                DealService.instance.invalidateCache();
                 Navigator.of(context)
                   ..pop()
                   ..pop();
               },
-              child: const Text('Retour à l\'accueil', style: TextStyle(color: AppColors.textSecondary)),
+              child: const Text(
+                'Retour à l\'accueil',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
             ),
           ],
         ),
@@ -1248,7 +1720,11 @@ class _SectionLabel extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           text,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.primary),
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
         ),
       ],
     );
@@ -1266,8 +1742,20 @@ class _Tip extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('• ', style: TextStyle(color: AppColors.cta, fontWeight: FontWeight.bold)),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 12, color: AppColors.primary, height: 1.4))),
+          const Text(
+            '• ',
+            style: TextStyle(color: AppColors.cta, fontWeight: FontWeight.bold),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.primary,
+                height: 1.4,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1295,15 +1783,370 @@ class _SummaryRow extends StatelessWidget {
         children: [
           Icon(icon, size: 15, color: Colors.white54),
           const SizedBox(width: 8),
-          Text('$label : ', style: const TextStyle(fontSize: 12, color: Colors.white54)),
+          Text(
+            '$label : ',
+            style: const TextStyle(fontSize: 12, color: Colors.white54),
+          ),
           Expanded(
             child: Text(
               value,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  WIDGET : Bouton Agent IA Publication
+// ═══════════════════════════════════════════════
+class _AiGenerateButton extends StatefulWidget {
+  final DealDraft draft;
+  final VoidCallback onGenerated;
+  final String label;
+
+  const _AiGenerateButton({
+    required this.draft,
+    required this.onGenerated,
+    this.label = '✦ Générer l\'annonce avec l\'IA',
+  });
+
+  @override
+  State<_AiGenerateButton> createState() => _AiGenerateButtonState();
+}
+
+class _AiGenerateButtonState extends State<_AiGenerateButton>
+    with SingleTickerProviderStateMixin {
+  bool _isGenerating = false;
+  late AnimationController _shimmerCtrl;
+  late Animation<double> _shimmer;
+
+  // Messages affichés pendant la génération (simulés)
+  final _steps = [
+    '📸 Analyse des photos…',
+    '🧠 Identification du produit…',
+    '✍️ Rédaction du titre…',
+    '📝 Génération de la description…',
+    '💰 Estimation du prix marché…',
+    '✅ Annonce prête !',
+  ];
+  int _stepIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _shimmer = Tween<double>(
+      begin: 0.6,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _shimmerCtrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _shimmerCtrl.dispose();
+    super.dispose();
+  }
+
+  // Contenu généré simulé par catégorie
+  Map<String, String> _getGeneratedContent() {
+    final cat = widget.draft.categoryLabel ?? 'Produit';
+    final Map<String, Map<String, String>> templates = {
+      'Électronique': {
+        'title': 'Smartphone reconditionné — Excellent état, batterie 95%',
+        'desc':
+            'Appareil en excellent état de fonctionnement. Batterie à 95% de sa capacité d\'origine. '
+            'Écran sans rayures, coque impeccable. Fourni avec chargeur original et câble USB. '
+            'Débloqué tous opérateurs. Idéal pour un usage quotidien à prix réduit. '
+            'Remise en main propre possible sur Douala ou envoi MTN MoMo sécurisé.',
+        'price': '75000',
+      },
+      'Auto / Moto': {
+        'title': 'Moto occasion — Très bon état, révision récente',
+        'desc':
+            'Moto en très bon état général, entretenue régulièrement. Révision complète effectuée '
+            'il y a 3 mois (vidange, filtres, bougies). Kilométrage certifié. '
+            'Pneus récents, freins en parfait état. Documents à jour. '
+            'Remise en main propre, essai possible sur place.',
+        'price': '450000',
+      },
+      'Immobilier': {
+        'title': 'Studio meublé disponible immédiatement — Quartier calme',
+        'desc':
+            'Beau studio entièrement meublé et équipé, disponible immédiatement. '
+            'Climatisé, eau chaude, connexion internet incluse. Quartier résidentiel calme, '
+            'sécurisé, proche commerces et transports. Idéal étudiant ou professionnel. '
+            'Caution d\'un mois requise. Visite possible sur RDV.',
+        'price': '80000',
+      },
+    };
+    final def = {
+      'title': '$cat disponible — Très bon état, prix négociable',
+      'desc':
+          'Article en très bon état, utilisé avec soin. '
+          'Toutes les fonctionnalités sont opérationnelles. '
+          'Vendu pour cause de renouvellement. Prix légèrement négociable pour acheteur sérieux. '
+          'Remise en main propre à Douala ou envoi possible. N\'hésitez pas à contacter pour plus d\'informations.',
+      'price': '25000',
+    };
+    return templates[cat] ?? def;
+  }
+
+  Future<void> _generate() async {
+    if (widget.draft.photos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.white, size: 16),
+              SizedBox(width: 8),
+              Text('Ajoutez au moins 1 photo pour générer avec l\'IA'),
+            ],
+          ),
+          backgroundColor: Colors.orange.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isGenerating = true;
+      _stepIndex = 0;
+    });
+
+    // Simulation étapes de génération
+    // TODO: remplacer par appel réel POST /ai/generate-deal
+    for (int i = 0; i < _steps.length; i++) {
+      await Future.delayed(Duration(milliseconds: 350 + i * 80));
+      if (!mounted) return;
+      setState(() => _stepIndex = i);
+    }
+
+    // Remplir le draft avec le contenu généré
+    final generated = _getGeneratedContent();
+    widget.draft.title = generated['title']!;
+    widget.draft.description = generated['desc']!;
+    widget.draft.suggestedPrice = generated['price']!;
+    widget.draft.aiGenerated = true;
+
+    if (!mounted) return;
+    setState(() => _isGenerating = false);
+    widget.onGenerated();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isGenerating) {
+      return _AiGeneratingCard(
+        steps: _steps,
+        currentStep: _stepIndex,
+        shimmer: _shimmer,
+      );
+    }
+
+    return GestureDetector(
+      onTap: _generate,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF6A1B9A), Color(0xFF1565C0)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6A1B9A).withOpacity(0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  widget.label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.draft.photos.isNotEmpty
+                  ? 'Analyse vos ${widget.draft.photos.length} photo(s) et génère le contenu en 3 secondes'
+                  : 'Ajoutez des photos d\'abord',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.75),
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  WIDGET : Carte "Génération en cours"
+// ═══════════════════════════════════════════════
+class _AiGeneratingCard extends StatelessWidget {
+  final List<String> steps;
+  final int currentStep;
+  final Animation<double> shimmer;
+
+  const _AiGeneratingCard({
+    required this.steps,
+    required this.currentStep,
+    required this.shimmer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: shimmer,
+      builder: (_, __) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF6A1B9A).withOpacity(0.08),
+              const Color(0xFF1565C0).withOpacity(0.08),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF6A1B9A).withOpacity(0.25)),
+        ),
+        child: Column(
+          children: [
+            // Icône IA animée
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6A1B9A), Color(0xFF1565C0)],
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(
+                      0xFF6A1B9A,
+                    ).withOpacity(0.3 * shimmer.value),
+                    blurRadius: 16,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Agent IA en cours…',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF6A1B9A),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Liste des étapes
+            ...List.generate(steps.length, (i) {
+              final isDone = i < currentStep;
+              final isCurrent = i == currentStep;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: isDone
+                            ? const Color(0xFF2E7D32)
+                            : isCurrent
+                            ? const Color(0xFF6A1B9A)
+                            : Colors.transparent,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDone
+                              ? const Color(0xFF2E7D32)
+                              : isCurrent
+                              ? const Color(0xFF6A1B9A)
+                              : const Color(0xFFE5E7EB),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Icon(
+                        isDone
+                            ? Icons.check_rounded
+                            : isCurrent
+                            ? Icons.more_horiz_rounded
+                            : null,
+                        color: Colors.white,
+                        size: 13,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        steps[i],
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isCurrent
+                              ? FontWeight.w700
+                              : FontWeight.normal,
+                          color: isDone
+                              ? const Color(0xFF2E7D32)
+                              : isCurrent
+                              ? const Color(0xFF6A1B9A)
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }

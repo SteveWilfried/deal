@@ -11,7 +11,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
 
     <application
-        android:label="deal"
+        android:label="Ndokoti"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

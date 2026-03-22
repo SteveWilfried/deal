@@ -3,7 +3,7 @@ import 'package:deal/presentation/pages/home/homepage.dart';
 import 'package:deal/presentation/pages/publish/publish_deal_page.dart';
 import 'package:deal/presentation/widgets/bottom_navbar.dart';
 import 'package:deal/presentation/pages/profil/profile_page.dart';
-import 'package:deal/presentation/pages/dashboard/vendor_dashboard_page.dart';
+import 'package:deal/presentation/pages/favorite/favorites_page.dart';
 import 'package:deal/presentation/pages/search/search_page.dart';
 import 'package:flutter/material.dart';
 
@@ -19,10 +19,10 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
 
   final List<Widget> _pages = const [
     HomePage(),
-    const SearchPage(),
+    SearchPage(),
     SizedBox(), // Placeholder — le bouton "Publier" ouvre une modale
-    const VendorDashboardPage(),
-    const ProfilePage(),
+    FavoritesPage(),
+    ProfilePage(),
   ];
 
   void _onNavTap(int index) {

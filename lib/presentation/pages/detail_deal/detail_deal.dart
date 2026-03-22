@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/launcher_service.dart';
+import '../../../core/services/favorite_service.dart';
+import '../../../core/services/message_service.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/services/guest_service.dart';
 
 // ─────────────────────────────────────────────
 //  MODELS
@@ -124,22 +128,42 @@ class ProductDetailPage extends StatefulWidget {
   State<ProductDetailPage> createState() => _ProductDetailPageState();
 }
 
-class _ProductDetailPageState extends State<ProductDetailPage> {
+class _ProductDetailPageState extends State<ProductDetailPage>
+    with SingleTickerProviderStateMixin {
   late final DealModel _deal;
   final PageController _pageController = PageController();
   int _currentImage = 0;
   bool _isFavorite = false;
   bool _descExpanded = false;
+  bool _loadingFavorite = false;
+  bool _loadingMessage = false;
+  late AnimationController _heartController;
+  late Animation<double> _heartScale;
 
   @override
   void initState() {
     super.initState();
     _deal = widget.deal ?? kDemoDeal;
+    _heartController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _heartScale = Tween<double>(begin: 1.0, end: 1.4).animate(
+      CurvedAnimation(parent: _heartController, curve: Curves.elasticOut),
+    );
+    _initFavorite();
+  }
+
+  Future<void> _initFavorite() async {
+    if (!AppConfig.useRealBackend) return;
+    final isFav = await FavoriteService.instance.checkFavorite(_deal.id);
+    if (mounted) setState(() => _isFavorite = isFav);
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _heartController.dispose();
     super.dispose();
   }
 
@@ -162,14 +186,72 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     return 'Il y a ${diff.inDays ~/ 7} semaine(s)';
   }
 
-  void _showSnack(String msg) {
+  void _showSnack(String msg, {Color? color}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: AppColors.primary,
+      backgroundColor: color ?? AppColors.primary,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.all(16),
+      duration: const Duration(seconds: 2),
     ));
+  }
+
+  // ── Toggle favori ─────────────────────────
+  Future<void> _toggleFavorite() async {
+    if (_loadingFavorite) return;
+    if (!GuestService.instance.requireAuth(context, reason: 'Connectez-vous pour ajouter des annonces à vos favoris.')) return;
+    HapticFeedback.lightImpact();
+    _heartController.forward().then((_) => _heartController.reverse());
+
+    if (!AppConfig.useRealBackend) {
+      setState(() => _isFavorite = !_isFavorite);
+      _showSnack(
+        _isFavorite ? '❤️ Ajouté aux favoris' : 'Retiré des favoris',
+        color: _isFavorite ? Colors.red : AppColors.primary,
+      );
+      return;
+    }
+
+    setState(() => _loadingFavorite = true);
+    final result = await FavoriteService.instance.toggleFavorite(_deal.id);
+    if (mounted) {
+      setState(() {
+        _isFavorite = result;
+        _loadingFavorite = false;
+      });
+      _showSnack(
+        result ? '❤️ Ajouté aux favoris' : 'Retiré des favoris',
+        color: result ? Colors.red : AppColors.primary,
+      );
+    }
+  }
+
+  // ── Envoyer message ───────────────────────
+  Future<void> _sendMessage() async {
+    if (_loadingMessage) return;
+    if (!GuestService.instance.requireAuth(context, reason: 'Connectez-vous pour envoyer un message au vendeur.')) return;
+    HapticFeedback.mediumImpact();
+
+    if (!AppConfig.useRealBackend) {
+      _openWhatsApp();
+      return;
+    }
+
+    setState(() => _loadingMessage = true);
+    final convId = await MessageService.instance.startConversation(
+      sellerId: _deal.seller.id,
+      dealId: _deal.id,
+      firstMessage: 'Bonjour, je suis intéressé par "${_deal.title}" à ${_formatPrice(_deal.price)}.',
+    );
+    if (mounted) {
+      setState(() => _loadingMessage = false);
+      if (convId != null) {
+        _showSnack('✅ Message envoyé au vendeur');
+      } else {
+        _showSnack('❌ Erreur lors de l\'envoi du message');
+      }
+    }
   }
 
   void _openWhatsApp() {
@@ -185,17 +267,14 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   }
 
   void _callSeller() {
-    LauncherService.call(
-      context: context,
-      phone: _deal.seller.phone,
-    );
+    LauncherService.call(context: context, phone: _deal.seller.phone);
   }
 
   void _smsSeller() {
     LauncherService.sms(
       context: context,
       phone: _deal.seller.phone,
-      body: 'Bonjour, je vous contacte via Ndokoti.',
+      body: 'Bonjour, je vous contacte via Ndokoti pour "${_deal.title}".',
     );
   }
 
@@ -213,6 +292,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       body: Stack(
         children: [
           CustomScrollView(
+            physics: const BouncingScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(child: _buildCarousel()),
               SliverToBoxAdapter(
@@ -227,16 +307,13 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                       const SizedBox(height: 12),
                       _buildMeta(),
                       const SizedBox(height: 20),
-                      const Divider(color: Color(0xFFEEEEEE)),
-                      const SizedBox(height: 16),
+                      _buildDivider(),
                       _buildDescription(),
                       const SizedBox(height: 20),
-                      const Divider(color: Color(0xFFEEEEEE)),
-                      const SizedBox(height: 16),
+                      _buildDivider(),
                       _buildSellerCard(),
                       const SizedBox(height: 20),
-                      const Divider(color: Color(0xFFEEEEEE)),
-                      const SizedBox(height: 16),
+                      _buildDivider(),
                       _buildSafetyTips(),
                       const SizedBox(height: 110),
                     ],
@@ -255,7 +332,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
   }
 
-  // ── Carousel ──
+  Widget _buildDivider() => const Padding(
+    padding: EdgeInsets.only(bottom: 16),
+    child: Divider(color: Color(0xFFEEEEEE)),
+  );
+
+  // ── Carousel ──────────────────────────────
   Widget _buildCarousel() {
     return SizedBox(
       height: 320,
@@ -272,11 +354,18 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   ? child
                   : Container(
                       color: const Color(0xFFE5E7EB),
-                      child: const Center(child: CircularProgressIndicator(color: AppColors.cta, strokeWidth: 2)),
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.cta, strokeWidth: 2,
+                        ),
+                      ),
                     ),
               errorBuilder: (_, __, ___) => Container(
                 color: const Color(0xFFE5E7EB),
-                child: const Icon(Icons.image_not_supported_outlined, size: 48, color: AppColors.textSecondary),
+                child: const Icon(
+                  Icons.image_not_supported_outlined,
+                  size: 48, color: AppColors.textSecondary,
+                ),
               ),
             ),
           ),
@@ -289,39 +378,46 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
-                  colors: [Colors.black45, Colors.transparent],
+                  colors: [Colors.black54, Colors.transparent],
                 ),
               ),
             ),
           ),
           // Indicateurs
-          Positioned(
-            bottom: 14, left: 0, right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(_deal.images.length, (i) {
-                final active = i == _currentImage;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: active ? 20 : 6, height: 6,
-                  decoration: BoxDecoration(
-                    color: active ? Colors.white : Colors.white54,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                );
-              }),
+          if (_deal.images.length > 1)
+            Positioned(
+              bottom: 14, left: 0, right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(_deal.images.length, (i) {
+                  final active = i == _currentImage;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: active ? 20 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: active ? Colors.white : Colors.white54,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  );
+                }),
+              ),
             ),
-          ),
           // Compteur
           Positioned(
             bottom: 14, right: 16,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(20),
+              ),
               child: Text(
                 '${_currentImage + 1}/${_deal.images.length}',
-                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -330,7 +426,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
   }
 
-  // ── AppBar flottant ──
+  // ── AppBar flottant ───────────────────────
   Widget _buildFloatingAppBar() {
     return Positioned(
       top: 0, left: 0, right: 0,
@@ -340,13 +436,52 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _CircleBtn(icon: Icons.arrow_back_ios_new_rounded, onTap: () => Navigator.pop(context)),
+              _CircleBtn(
+                icon: Icons.arrow_back_ios_new_rounded,
+                onTap: () => Navigator.pop(context),
+              ),
               Row(
                 children: [
-                  _CircleBtn(
-                    icon: _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                    iconColor: _isFavorite ? Colors.red : null,
-                    onTap: () { setState(() => _isFavorite = !_isFavorite); HapticFeedback.lightImpact(); },
+                  // Bouton favori animé
+                  GestureDetector(
+                    onTap: _toggleFavorite,
+                    child: AnimatedBuilder(
+                      animation: _heartScale,
+                      builder: (_, child) => Transform.scale(
+                        scale: _heartScale.value,
+                        child: child,
+                      ),
+                      child: Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(
+                          color: _isFavorite
+                              ? Colors.red.shade50
+                              : Colors.white.withOpacity(0.9),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        child: _loadingFavorite
+                            ? const Padding(
+                                padding: EdgeInsets.all(10),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.red,
+                                ),
+                              )
+                            : Icon(
+                                _isFavorite
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
+                                color: _isFavorite ? Colors.red : AppColors.primary,
+                                size: 20,
+                              ),
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   _CircleBtn(icon: Icons.share_rounded, onTap: _shareOffer),
@@ -356,7 +491,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     onTap: () => showModalBottomSheet(
                       context: context,
                       backgroundColor: Colors.transparent,
-                      builder: (_) => _ReportSheet(),
+                      builder: (_) => _ReportSheet(onShare: _shareOffer),
                     ),
                   ),
                 ],
@@ -368,14 +503,17 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
   }
 
-  // ── Badges ──
+  // ── Badges ────────────────────────────────
   Widget _buildBadges() {
     return Wrap(
       spacing: 8, runSpacing: 6,
       children: [
-        if (_deal.isVerified) _Badge(label: '✓ Vérifié', color: const Color(0xFF1B5E20), bg: const Color(0xFFE8F5E9)),
-        if (_deal.isFlash)    _Badge(label: '⚡ Flash Deal', color: const Color(0xFFE65100), bg: const Color(0xFFFFF3E0)),
-        if (_deal.isBoosted)  _Badge(label: '🚀 Boosté', color: AppColors.primary, bg: const Color(0xFFE3F2FD)),
+        if (_deal.isVerified)
+          _Badge(label: '✓ Vérifié', color: const Color(0xFF1B5E20), bg: const Color(0xFFE8F5E9)),
+        if (_deal.isFlash)
+          _Badge(label: '⚡ Flash Deal', color: const Color(0xFFE65100), bg: const Color(0xFFFFF3E0)),
+        if (_deal.isBoosted)
+          _Badge(label: '🚀 Boosté', color: AppColors.primary, bg: const Color(0xFFE3F2FD)),
         _Badge(label: _deal.condition, color: AppColors.textSecondary, bg: const Color(0xFFF3F4F6)),
         if (_deal.availableForResell)
           _Badge(label: '🔄 Revendable', color: const Color(0xFF4A148C), bg: const Color(0xFFF3E5F5)),
@@ -383,7 +521,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
   }
 
-  // ── Prix & titre ──
+  // ── Prix & titre ──────────────────────────
   Widget _buildPriceTitle() {
     final hasDiscount = _deal.oldPrice != null && _deal.oldPrice! > _deal.price;
     final discount = hasDiscount
@@ -395,7 +533,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       children: [
         Text(
           _deal.title,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.primary, height: 1.3),
+          style: const TextStyle(
+            fontSize: 20, fontWeight: FontWeight.w800,
+            color: AppColors.primary, height: 1.3,
+          ),
         ),
         const SizedBox(height: 10),
         Row(
@@ -403,7 +544,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           children: [
             Text(
               _formatPrice(_deal.price),
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.cta),
+              style: const TextStyle(
+                fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.cta,
+              ),
             ),
             if (hasDiscount) ...[
               const SizedBox(width: 10),
@@ -414,8 +557,13 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: Colors.red.shade200),
                 ),
-                child: Text('-$discount%',
-                    style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold, fontSize: 12)),
+                child: Text(
+                  '-$discount%',
+                  style: TextStyle(
+                    color: Colors.red.shade700,
+                    fontWeight: FontWeight.bold, fontSize: 12,
+                  ),
+                ),
               ),
             ],
           ],
@@ -424,14 +572,18 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           const SizedBox(height: 4),
           Text(
             _formatPrice(_deal.oldPrice!),
-            style: const TextStyle(fontSize: 14, decoration: TextDecoration.lineThrough, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 14,
+              decoration: TextDecoration.lineThrough,
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ],
     );
   }
 
-  // ── Meta ──
+  // ── Meta ──────────────────────────────────
   Widget _buildMeta() {
     return Row(
       children: [
@@ -450,21 +602,28 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
   }
 
-  // ── Description expandable ──
+  // ── Description ───────────────────────────
   Widget _buildDescription() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Description',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.primary)),
+        const Text(
+          'Description',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.primary),
+        ),
         const SizedBox(height: 10),
         AnimatedCrossFade(
           duration: const Duration(milliseconds: 300),
           crossFadeState: _descExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-          firstChild: Text(_deal.description, maxLines: 5, overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.65)),
-          secondChild: Text(_deal.description,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.65)),
+          firstChild: Text(
+            _deal.description,
+            maxLines: 5, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.65),
+          ),
+          secondChild: Text(
+            _deal.description,
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.65),
+          ),
         ),
         const SizedBox(height: 8),
         GestureDetector(
@@ -473,7 +632,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             children: [
               Text(
                 _descExpanded ? 'Voir moins' : 'Voir plus',
-                style: const TextStyle(color: AppColors.cta, fontWeight: FontWeight.w600, fontSize: 13),
+                style: const TextStyle(
+                  color: AppColors.cta, fontWeight: FontWeight.w600, fontSize: 13,
+                ),
               ),
               const SizedBox(width: 4),
               Icon(
@@ -487,15 +648,17 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
   }
 
-  // ── Vendeur ──
+  // ── Vendeur ───────────────────────────────
   Widget _buildSellerCard() {
     final s = _deal.seller;
     final yrs = DateTime.now().year - s.memberSince.year;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('À propos du vendeur',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.primary)),
+        const Text(
+          'À propos du vendeur',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.primary),
+        ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(16),
@@ -508,20 +671,33 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             children: [
               Row(
                 children: [
+                  // Avatar
                   Stack(
                     children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: AppColors.cta.withOpacity(0.15),
-                        child: Text(s.name[0].toUpperCase(),
-                            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.cta)),
-                      ),
+                      s.avatarUrl != null
+                          ? CircleAvatar(
+                              radius: 28,
+                              backgroundImage: NetworkImage(s.avatarUrl!),
+                            )
+                          : CircleAvatar(
+                              radius: 28,
+                              backgroundColor: AppColors.cta.withOpacity(0.15),
+                              child: Text(
+                                s.name[0].toUpperCase(),
+                                style: const TextStyle(
+                                  fontSize: 22, fontWeight: FontWeight.bold,
+                                  color: AppColors.cta,
+                                ),
+                              ),
+                            ),
                       if (s.isVerified)
                         Positioned(
                           bottom: 0, right: 0,
                           child: Container(
                             width: 18, height: 18,
-                            decoration: const BoxDecoration(color: Color(0xFF1B5E20), shape: BoxShape.circle),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF1B5E20), shape: BoxShape.circle,
+                            ),
                             child: const Icon(Icons.check, color: Colors.white, size: 12),
                           ),
                         ),
@@ -534,7 +710,16 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                       children: [
                         Row(
                           children: [
-                            Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.primary)),
+                            Flexible(
+                              child: Text(
+                                s.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15, color: AppColors.primary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                             if (s.isVerified) ...[
                               const SizedBox(width: 6),
                               const Icon(Icons.verified_rounded, color: Color(0xFF1B5E20), size: 16),
@@ -546,8 +731,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                           children: [
                             const Icon(Icons.star_rounded, color: Colors.amber, size: 15),
                             const SizedBox(width: 3),
-                            Text('${s.rating} (${s.reviewCount} avis)',
-                                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                            Text(
+                              '${s.rating} (${s.reviewCount} avis)',
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            ),
                           ],
                         ),
                       ],
@@ -560,19 +747,29 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
-                    child: const Text('Profil', style: TextStyle(fontSize: 12, color: AppColors.primary)),
+                    child: const Text(
+                      'Profil',
+                      style: TextStyle(fontSize: 12, color: AppColors.primary),
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 14),
-              Row(
-                children: [
-                  _StatCol(label: 'Annonces', value: '${s.totalDeals}'),
-                  Container(width: 1, height: 30, color: const Color(0xFFE5E7EB)),
-                  _StatCol(label: 'Note', value: '${s.rating}/5'),
-                  Container(width: 1, height: 30, color: const Color(0xFFE5E7EB)),
-                  _StatCol(label: 'Membre', value: yrs > 0 ? '${yrs}an(s)' : 'Récent'),
-                ],
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    _StatCol(label: 'Annonces', value: '${s.totalDeals}'),
+                    Container(width: 1, height: 30, color: const Color(0xFFE5E7EB)),
+                    _StatCol(label: 'Note', value: '${s.rating}/5'),
+                    Container(width: 1, height: 30, color: const Color(0xFFE5E7EB)),
+                    _StatCol(label: 'Membre', value: yrs > 0 ? '${yrs}an(s)' : 'Récent'),
+                  ],
+                ),
               ),
             ],
           ),
@@ -581,7 +778,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
   }
 
-  // ── Conseils sécurité ──
+  // ── Conseils sécurité ─────────────────────
   Widget _buildSafetyTips() {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -596,8 +793,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           Row(children: [
             Icon(Icons.security_rounded, color: Color(0xFFF57F17), size: 18),
             SizedBox(width: 8),
-            Text('Conseils de sécurité Ndokoti',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFFF57F17))),
+            Text(
+              'Conseils de sécurité Ndokoti',
+              style: TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFFF57F17),
+              ),
+            ),
           ]),
           SizedBox(height: 8),
           _TipRow(text: 'Rencontrez le vendeur dans un lieu public'),
@@ -609,7 +810,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
   }
 
-  // ── Bottom bar ──
+  // ── Bottom bar ────────────────────────────
   Widget _buildBottomBar() {
     return Container(
       padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
@@ -621,7 +822,15 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         children: [
           _BtnAction(icon: Icons.call_rounded, label: 'Appeler', onTap: _callSeller),
           const SizedBox(width: 8),
-          _BtnAction(icon: Icons.sms_rounded, label: 'SMS', onTap: _smsSeller),
+          // Bouton Message Ndokoti (si backend réel) ou SMS
+          AppConfig.useRealBackend
+              ? _BtnActionLoading(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  label: 'Message',
+                  loading: _loadingMessage,
+                  onTap: _sendMessage,
+                )
+              : _BtnAction(icon: Icons.sms_rounded, label: 'SMS', onTap: _smsSeller),
           const SizedBox(width: 8),
           Expanded(
             flex: 2,
@@ -638,8 +847,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   children: [
                     Icon(Icons.chat_rounded, color: Colors.white, size: 20),
                     SizedBox(width: 8),
-                    Text('WhatsApp',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                    Text(
+                      'WhatsApp',
+                      style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -654,6 +867,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 // ═══════════════════════════════════════════════
 //  WIDGETS HELPER
 // ═══════════════════════════════════════════════
+
 class _CircleBtn extends StatelessWidget {
   final IconData icon;
   final Color? iconColor;
@@ -688,7 +902,10 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+      ),
     );
   }
 }
@@ -703,7 +920,10 @@ class _StatCol extends StatelessWidget {
     return Expanded(
       child: Column(
         children: [
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primary)),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primary),
+          ),
           const SizedBox(height: 2),
           Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
         ],
@@ -735,7 +955,55 @@ class _BtnAction extends StatelessWidget {
           children: [
             Icon(icon, color: AppColors.primary, size: 18),
             const SizedBox(height: 2),
-            Text(label, style: const TextStyle(fontSize: 10, color: AppColors.primary, fontWeight: FontWeight.w600)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 10, color: AppColors.primary, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BtnActionLoading extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool loading;
+  final VoidCallback onTap;
+  const _BtnActionLoading({
+    required this.icon,
+    required this.label,
+    required this.loading,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: loading ? null : onTap,
+      child: Container(
+        height: 50,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            loading
+                ? const SizedBox(
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                  )
+                : Icon(icon, color: AppColors.primary, size: 18),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 10, color: AppColors.primary, fontWeight: FontWeight.w600),
+            ),
           ],
         ),
       ),
@@ -756,7 +1024,10 @@ class _TipRow extends StatelessWidget {
         children: [
           const Text('• ', style: TextStyle(color: Color(0xFFF57F17), fontWeight: FontWeight.bold)),
           Expanded(
-            child: Text(text, style: const TextStyle(fontSize: 12, color: Color(0xFF5D4037), height: 1.4)),
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF5D4037), height: 1.4),
+            ),
           ),
         ],
       ),
@@ -765,6 +1036,9 @@ class _TipRow extends StatelessWidget {
 }
 
 class _ReportSheet extends StatelessWidget {
+  final VoidCallback onShare;
+  const _ReportSheet({required this.onShare});
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -776,13 +1050,21 @@ class _ReportSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 40, height: 4,
-              decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2))),
+          Container(
+            width: 40, height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE5E7EB),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           const SizedBox(height: 20),
           ListTile(
             leading: const Icon(Icons.share_rounded, color: AppColors.primary),
             title: const Text('Partager l\'annonce'),
-            onTap: () => Navigator.pop(context),
+            onTap: () {
+              Navigator.pop(context);
+              onShare();
+            },
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
           ListTile(
@@ -802,3 +1084,7 @@ class _ReportSheet extends StatelessWidget {
     );
   }
 }
+
+
+// Alias pour compatibilité
+typedef DetailDealPage = ProductDetailPage;

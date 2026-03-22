@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../widgets/ai_components.dart';
 import '../detail_deal/detail_deal.dart';
 import '../publish/publish_deal_page.dart';
 
@@ -90,47 +91,80 @@ final kDemoStats = VendorStats(
 
 final kDemoDeals = [
   DealModel(
-    id: 'd1', title: 'iPhone 13 Pro 256Go', price: 280000, oldPrice: 320000,
-    condition: 'Occasion', city: 'Douala', category: 'Électronique',
-    description: '', images: ['https://picsum.photos/seed/ip13/400/300'],
-    isVerified: true, isFlash: true,
+    id: 'd1',
+    title: 'iPhone 13 Pro 256Go',
+    price: 280000,
+    oldPrice: 320000,
+    condition: 'Occasion',
+    city: 'Douala',
+    category: 'Électronique',
+    description: '',
+    images: ['https://picsum.photos/seed/ip13/400/300'],
+    isVerified: true,
+    isFlash: true,
     postedAt: DateTime.now().subtract(const Duration(days: 2)),
-    views: 1240, seller: _demoSeller,
+    views: 1240,
+    seller: _demoSeller,
   ),
   DealModel(
-    id: 'd2', title: 'Canapé cuir 3 places', price: 85000,
-    condition: 'Occasion', city: 'Yaoundé', category: 'Maison',
-    description: '', images: ['https://picsum.photos/seed/sofa2/400/300'],
+    id: 'd2',
+    title: 'Canapé cuir 3 places',
+    price: 85000,
+    condition: 'Occasion',
+    city: 'Yaoundé',
+    category: 'Maison',
+    description: '',
+    images: ['https://picsum.photos/seed/sofa2/400/300'],
     postedAt: DateTime.now().subtract(const Duration(days: 5)),
-    views: 430, seller: _demoSeller,
+    views: 430,
+    seller: _demoSeller,
   ),
   DealModel(
-    id: 'd3', title: 'Samsung Galaxy A14 128Go', price: 95000, oldPrice: 120000,
-    condition: 'Neuf', city: 'Douala', category: 'Électronique',
-    description: '', images: ['https://picsum.photos/seed/sams/400/300'],
+    id: 'd3',
+    title: 'Samsung Galaxy A14 128Go',
+    price: 95000,
+    oldPrice: 120000,
+    condition: 'Neuf',
+    city: 'Douala',
+    category: 'Électronique',
+    description: '',
+    images: ['https://picsum.photos/seed/sams/400/300'],
     availableForResell: true,
     postedAt: DateTime.now().subtract(const Duration(days: 8)),
-    views: 876, seller: _demoSeller,
+    views: 876,
+    seller: _demoSeller,
   ),
   DealModel(
-    id: 'd4', title: 'Moto Bajaj Boxer 150cc', price: 450000,
-    condition: 'Occasion', city: 'Douala', category: 'Auto / Moto',
-    description: '', images: ['https://picsum.photos/seed/moto/400/300'],
+    id: 'd4',
+    title: 'Moto Bajaj Boxer 150cc',
+    price: 450000,
+    condition: 'Occasion',
+    city: 'Douala',
+    category: 'Auto / Moto',
+    description: '',
+    images: ['https://picsum.photos/seed/moto/400/300'],
     postedAt: DateTime.now().subtract(const Duration(days: 12)),
-    views: 210, seller: _demoSeller,
+    views: 210,
+    seller: _demoSeller,
   ),
 ];
 
 final kDemoResellerLinks = [
   ResellerLink(
-    id: 'r1', dealTitle: 'Samsung Galaxy A14',
+    id: 'r1',
+    dealTitle: 'Samsung Galaxy A14',
     shortUrl: 'ndokoti.cm/r/abc123',
-    clicks: 142, sales: 3, commission: 15000,
+    clicks: 142,
+    sales: 3,
+    commission: 15000,
   ),
   ResellerLink(
-    id: 'r2', dealTitle: 'iPhone 13 Pro',
+    id: 'r2',
+    dealTitle: 'iPhone 13 Pro',
     shortUrl: 'ndokoti.cm/r/xyz456',
-    clicks: 89, sales: 1, commission: 8000,
+    clicks: 89,
+    sales: 1,
+    commission: 8000,
   ),
 ];
 
@@ -189,9 +223,12 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
 
   List<DealModel> get _filteredDeals {
     switch (_dealFilter) {
-      case 'Actifs': return _deals.take(3).toList();
-      case 'Vendus': return _deals.skip(3).toList();
-      default:       return _deals;
+      case 'Actifs':
+        return _deals.take(3).toList();
+      case 'Vendus':
+        return _deals.skip(3).toList();
+      default:
+        return _deals;
     }
   }
 
@@ -208,11 +245,7 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
         ],
         body: TabBarView(
           controller: _tabController,
-          children: [
-            _buildDealsTab(),
-            _buildStatsTab(),
-            _buildResellerTab(),
-          ],
+          children: [_buildDealsTab(), _buildStatsTab(), _buildResellerTab()],
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -222,8 +255,10 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
         ),
         backgroundColor: AppColors.cta,
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Nouveau deal',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        label: const Text(
+          'Nouveau deal',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
@@ -248,37 +283,51 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Dashboard Vendeur',
-                          style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500)),
+                      const Text(
+                        'Dashboard Vendeur',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      const Text('Steve Djomi',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold)),
+                      const Text(
+                        'Steve Djomi',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ),
                   // Notifications
                   Stack(
                     children: [
                       Container(
-                        width: 44, height: 44,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.notifications_outlined,
-                            color: Colors.white, size: 22),
+                        child: const Icon(
+                          Icons.notifications_outlined,
+                          color: Colors.white,
+                          size: 22,
+                        ),
                       ),
                       Positioned(
-                        top: 8, right: 8,
+                        top: 8,
+                        right: 8,
                         child: Container(
-                          width: 8, height: 8,
+                          width: 8,
+                          height: 8,
                           decoration: const BoxDecoration(
-                              color: AppColors.cta, shape: BoxShape.circle),
+                            color: AppColors.cta,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                       ),
                     ],
@@ -375,21 +424,27 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
             Row(
               children: [
                 Container(
-                  width: 48, height: 48,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: AppColors.cta.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Icon(Icons.account_balance_wallet_rounded,
-                      color: AppColors.cta, size: 26),
+                  child: const Icon(
+                    Icons.account_balance_wallet_rounded,
+                    color: AppColors.cta,
+                    size: 26,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Portefeuille Ndokoti',
-                          style: TextStyle(color: Colors.white60, fontSize: 12)),
+                      const Text(
+                        'Portefeuille Ndokoti',
+                        style: TextStyle(color: Colors.white60, fontSize: 12),
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         _formatPrice(_stats.walletBalance),
@@ -408,14 +463,18 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.cta,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     elevation: 0,
                   ),
-                  child: const Text('Retirer',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 13)),
+                  child: const Text(
+                    'Retirer',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
                 ),
               ],
             ),
@@ -470,8 +529,10 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
           indicatorSize: TabBarIndicatorSize.tab,
           labelColor: Colors.white,
           unselectedLabelColor: AppColors.textSecondary,
-          labelStyle:
-              const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
           dividerColor: Colors.transparent,
           padding: const EdgeInsets.all(3),
           tabs: const [
@@ -501,8 +562,10 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   margin: const EdgeInsets.only(right: 8),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     color: selected ? AppColors.primary : AppColors.surface,
                     borderRadius: BorderRadius.circular(20),
@@ -512,12 +575,14 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
                           : const Color(0xFFE5E7EB),
                     ),
                   ),
-                  child: Text(f,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: selected ? Colors.white : AppColors.textSecondary,
-                      )),
+                  child: Text(
+                    f,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? Colors.white : AppColors.textSecondary,
+                    ),
+                  ),
                 ),
               );
             }).toList(),
@@ -544,14 +609,20 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.sell_outlined, size: 48, color: AppColors.textSecondary),
+          const Icon(
+            Icons.sell_outlined,
+            size: 48,
+            color: AppColors.textSecondary,
+          ),
           const SizedBox(height: 12),
           Text(
             _dealFilter == 'Vendus'
                 ? 'Aucune vente pour le moment'
                 : 'Aucune annonce active',
             style: const TextStyle(
-                color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -573,40 +644,50 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Résumé performance ──
-          const Text('Performance globale',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: AppColors.primary)),
+          AiSectionHeader(
+            title: 'Performance globale',
+            subtitle: '30 derniers jours vs mois précédent',
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
-              _StatBig(label: 'Annonces publiées', value: '${_stats.totalDeals}',
-                  color: AppColors.cta),
+              _StatBig(
+                label: 'Annonces publiées',
+                value: '${_stats.totalDeals}',
+                color: AppColors.cta,
+              ),
               const SizedBox(width: 12),
-              _StatBig(label: 'Taux de contact', value: '${_stats.conversionRate}%',
-                  color: const Color(0xFF2E7D32)),
+              _StatBig(
+                label: 'Taux de contact',
+                value: '${_stats.conversionRate}%',
+                color: const Color(0xFF2E7D32),
+              ),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              _StatBig(label: 'Vues totales', value: '${_stats.totalViews}',
-                  color: const Color(0xFF1565C0)),
+              _StatBig(
+                label: 'Vues totales',
+                value: '${_stats.totalViews}',
+                color: const Color(0xFF1565C0),
+              ),
               const SizedBox(width: 12),
-              _StatBig(label: 'Contacts reçus', value: '${_stats.totalContacts}',
-                  color: const Color(0xFF7B1FA2)),
+              _StatBig(
+                label: 'Contacts reçus',
+                value: '${_stats.totalContacts}',
+                color: const Color(0xFF7B1FA2),
+              ),
             ],
           ),
 
           const SizedBox(height: 24),
 
           // ── Graphe vues par mois ──
-          const Text('Vues par mois',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: AppColors.primary)),
+          AiSectionHeader(
+            title: 'Vues par mois',
+            subtitle: 'Tendance détectée par l\'IA : +14% ce mois',
+          ),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
@@ -614,8 +695,7 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withOpacity(0.04), blurRadius: 8)
+                BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
               ],
             ),
             child: Column(
@@ -629,18 +709,20 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
                       final isLast = s == _stats.monthlyStats.last;
                       return Expanded(
                         child: Padding(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
-                              Text('${s.views}',
-                                  style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                      color: isLast
-                                          ? AppColors.cta
-                                          : AppColors.textSecondary)),
+                              Text(
+                                '${s.views}',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: isLast
+                                      ? AppColors.cta
+                                      : AppColors.textSecondary,
+                                ),
+                              ),
                               const SizedBox(height: 4),
                               AnimatedContainer(
                                 duration: const Duration(milliseconds: 600),
@@ -663,11 +745,14 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
                 Row(
                   children: _stats.monthlyStats.map((s) {
                     return Expanded(
-                      child: Text(s.month,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              fontSize: 10,
-                              color: AppColors.textSecondary)),
+                      child: Text(
+                        s.month,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     );
                   }).toList(),
                 ),
@@ -678,44 +763,68 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
           const SizedBox(height: 24),
 
           // ── Top annonces ──
-          const Text('Top annonces',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: AppColors.primary)),
+          AiSectionHeader(
+            title: 'Top annonces',
+            subtitle: 'Triées par taux de contact IA',
+          ),
           const SizedBox(height: 12),
           ..._deals.take(3).map((d) => _TopDealRow(deal: d)),
 
           const SizedBox(height: 24),
 
-          // ── Conseils ──
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.accent.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(14),
-              border:
-                  Border.all(color: AppColors.accent.withOpacity(0.3)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Row(children: [
-                  Icon(Icons.lightbulb_outline, color: AppColors.accent, size: 18),
-                  SizedBox(width: 8),
-                  Text('Conseils pour booster vos ventes',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: AppColors.primary)),
-                ]),
-                SizedBox(height: 10),
-                _TipRow(text: 'Ajoutez 5+ photos à chaque annonce'),
-                _TipRow(text: 'Répondez aux contacts en moins de 1h'),
-                _TipRow(text: 'Activez l\'option Revendeur pour plus de visibilité'),
-                _TipRow(text: 'Publiez le matin entre 7h et 10h'),
-              ],
-            ),
+          // ── Analyse IA ──
+          AiSectionHeader(
+            title: 'Analyse & conseils IA',
+            subtitle: 'Basés sur vos 30 derniers jours',
+          ),
+          const SizedBox(height: 12),
+
+          // Score de performance
+          _AiScoreCard(
+            score: _stats.conversionRate,
+            totalViews: _stats.totalViews,
+            totalContacts: _stats.totalContacts,
+          ),
+          const SizedBox(height: 12),
+
+          // Conseils IA personnalisés
+          AiInsightCard(
+            emoji: '📸',
+            title: 'Optimisez vos photos',
+            body:
+                'Vos annonces avec 3+ photos obtiennent 2,4× plus de contacts. '
+                '3 de vos annonces actives n\'ont qu\'une seule photo.',
+            actionLabel: 'Mettre à jour mes annonces',
+            accentColor: AppColors.cta,
+          ),
+          const SizedBox(height: 10),
+          AiInsightCard(
+            emoji: '⏰',
+            title: 'Meilleure heure de publication',
+            body:
+                'L\'IA détecte que vos annonces publiées entre 7h–9h reçoivent '
+                '68% plus de vues le premier jour. Programmez vos prochaines publications.',
+            accentColor: AppColors.info,
+          ),
+          const SizedBox(height: 10),
+          AiInsightCard(
+            emoji: '💰',
+            title: 'Prix sous-évalués',
+            body:
+                'Votre Samsung Galaxy A14 est listé 15% en dessous du prix moyen '
+                'du marché (109 000 FCFA). Vous pourriez augmenter sans perdre de contacts.',
+            actionLabel: 'Ajuster le prix',
+            accentColor: AppColors.success,
+          ),
+          const SizedBox(height: 10),
+          AiInsightCard(
+            emoji: '🔄',
+            title: 'Activez le programme Revendeur',
+            body:
+                '2 de vos annonces sont éligibles au programme revendeur. '
+                'Les vendeurs avec revendeurs actifs vendent en moyenne 3× plus vite.',
+            actionLabel: 'Activer maintenant',
+            accentColor: AppColors.reseller,
           ),
         ],
       ),
@@ -748,30 +857,38 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: const [
-                      Text('Programme Revendeur',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16)),
+                      Text(
+                        'Programme Revendeur',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
                       SizedBox(height: 6),
                       Text(
                         'Vos revendeurs génèrent des ventes\npendant que vous dormez.',
                         style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            height: 1.5),
+                          color: Colors.white70,
+                          fontSize: 12,
+                          height: 1.5,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  width: 56, height: 56,
+                  width: 56,
+                  height: 56,
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Icon(Icons.people_alt_rounded,
-                      color: Colors.white, size: 30),
+                  child: const Icon(
+                    Icons.people_alt_rounded,
+                    color: Colors.white,
+                    size: 30,
+                  ),
                 ),
               ],
             ),
@@ -783,57 +900,70 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
           Row(
             children: [
               _ResellerStat(
-                  label: 'Revendeurs actifs',
-                  value: '7',
-                  icon: Icons.person_outline,
-                  color: const Color(0xFF7B1FA2)),
+                label: 'Revendeurs actifs',
+                value: '7',
+                icon: Icons.person_outline,
+                color: const Color(0xFF7B1FA2),
+              ),
               const SizedBox(width: 12),
               _ResellerStat(
-                  label: 'Liens cliqués',
-                  value: '${_resellerLinks.fold(0, (s, l) => s + l.clicks)}',
-                  icon: Icons.link_rounded,
-                  color: const Color(0xFF1565C0)),
+                label: 'Liens cliqués',
+                value: '${_resellerLinks.fold(0, (s, l) => s + l.clicks)}',
+                icon: Icons.link_rounded,
+                color: const Color(0xFF1565C0),
+              ),
               const SizedBox(width: 12),
               _ResellerStat(
-                  label: 'Commissions versées',
-                  value: _formatPrice(
-                      _resellerLinks.fold(0, (s, l) => s + l.commission)),
-                  icon: Icons.payments_outlined,
-                  color: const Color(0xFF2E7D32)),
+                label: 'Commissions versées',
+                value: _formatPrice(
+                  _resellerLinks.fold(0, (s, l) => s + l.commission),
+                ),
+                icon: Icons.payments_outlined,
+                color: const Color(0xFF2E7D32),
+              ),
             ],
           ),
 
           const SizedBox(height: 20),
 
           // ── Liens revendeurs ──
-          const Text('Liens de vos revendeurs',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: AppColors.primary)),
+          const Text(
+            'Liens de vos revendeurs',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: AppColors.primary,
+            ),
+          ),
           const SizedBox(height: 12),
 
-          ..._resellerLinks.map((link) => _ResellerLinkCard(
-                link: link,
-                onCopy: () {
-                  Clipboard.setData(ClipboardData(text: link.shortUrl));
-                  _showSnack('Lien copié : ${link.shortUrl}');
-                },
-              )),
+          ..._resellerLinks.map(
+            (link) => _ResellerLinkCard(
+              link: link,
+              onCopy: () {
+                Clipboard.setData(ClipboardData(text: link.shortUrl));
+                _showSnack('Lien copié : ${link.shortUrl}');
+              },
+            ),
+          ),
 
           const SizedBox(height: 20),
 
           // ── Comment ça marche ──
-          const Text('Comment ça marche ?',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: AppColors.primary)),
+          const Text(
+            'Comment ça marche ?',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: AppColors.primary,
+            ),
+          ),
           const SizedBox(height: 12),
           _HowItWorksStep(
             step: '1',
             title: 'Activez la revente sur vos annonces',
-            subtitle: 'Lors de la publication, activez le toggle "Permettre la revente".',
+            subtitle:
+                'Lors de la publication, activez le toggle "Permettre la revente".',
             color: AppColors.cta,
           ),
           _HowItWorksStep(
@@ -845,7 +975,8 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
           _HowItWorksStep(
             step: '3',
             title: 'Vente conclue → vous êtes payé',
-            subtitle: 'Le montant net (hors marge revendeur) arrive dans votre portefeuille.',
+            subtitle:
+                'Le montant net (hors marge revendeur) arrive dans votre portefeuille.',
             color: const Color(0xFF2E7D32),
           ),
         ],
@@ -864,13 +995,15 @@ class _VendorDashboardPageState extends State<VendorDashboardPage>
   }
 
   void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: AppColors.primary,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(16),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 }
 
@@ -899,7 +1032,9 @@ class _VendorDealCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
+        ],
       ),
       child: Row(
         children: [
@@ -908,13 +1043,18 @@ class _VendorDealCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             child: Image.network(
               deal.images.first,
-              width: 72, height: 72,
+              width: 72,
+              height: 72,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Container(
-                width: 72, height: 72,
+                width: 72,
+                height: 72,
                 color: const Color(0xFFE5E7EB),
-                child: const Icon(Icons.image_not_supported_outlined,
-                    color: AppColors.textSecondary, size: 28),
+                child: const Icon(
+                  Icons.image_not_supported_outlined,
+                  color: AppColors.textSecondary,
+                  size: 28,
+                ),
               ),
             ),
           ),
@@ -925,39 +1065,57 @@ class _VendorDealCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(deal.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: AppColors.primary)),
+                Text(
+                  deal.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: AppColors.primary,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(_formatPrice(deal.price),
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                        color: AppColors.cta)),
+                Text(
+                  _formatPrice(deal.price),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                    color: AppColors.cta,
+                  ),
+                ),
                 const SizedBox(height: 6),
                 // Métriques
                 Row(
                   children: [
-                    _MiniStat(icon: Icons.visibility_outlined, value: '${deal.views}'),
+                    _MiniStat(
+                      icon: Icons.visibility_outlined,
+                      value: '${deal.views}',
+                    ),
                     const SizedBox(width: 12),
-                    _MiniStat(icon: Icons.chat_bubble_outline_rounded, value: '${(deal.views * 0.055).round()}'),
+                    _MiniStat(
+                      icon: Icons.chat_bubble_outline_rounded,
+                      value: '${(deal.views * 0.055).round()}',
+                    ),
                     if (deal.availableForResell) ...[
                       const SizedBox(width: 12),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF3E5F5),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text('🔄 Revendable',
-                            style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF7B1FA2))),
+                        child: const Text(
+                          '🔄 Revendable',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF7B1FA2),
+                          ),
+                        ),
                       ),
                     ],
                   ],
@@ -968,49 +1126,71 @@ class _VendorDealCard extends StatelessWidget {
 
           // Menu
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded,
-                color: AppColors.textSecondary),
+            icon: const Icon(
+              Icons.more_vert_rounded,
+              color: AppColors.textSecondary,
+            ),
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+              borderRadius: BorderRadius.circular(12),
+            ),
             onSelected: (v) {
               if (v == 'view') {
-                Navigator.push(context,
-                    MaterialPageRoute(
-                        builder: (_) => ProductDetailPage(deal: deal)));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ProductDetailPage(deal: deal),
+                  ),
+                );
               }
             },
             itemBuilder: (_) => [
               const PopupMenuItem(
                 value: 'view',
-                child: Row(children: [
-                  Icon(Icons.visibility_outlined, size: 16),
-                  SizedBox(width: 8),
-                  Text('Voir l\'annonce'),
-                ]),
+                child: Row(
+                  children: [
+                    Icon(Icons.visibility_outlined, size: 16),
+                    SizedBox(width: 8),
+                    Text('Voir l\'annonce'),
+                  ],
+                ),
               ),
               const PopupMenuItem(
                 value: 'edit',
-                child: Row(children: [
-                  Icon(Icons.edit_outlined, size: 16),
-                  SizedBox(width: 8),
-                  Text('Modifier'),
-                ]),
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_outlined, size: 16),
+                    SizedBox(width: 8),
+                    Text('Modifier'),
+                  ],
+                ),
               ),
               const PopupMenuItem(
                 value: 'boost',
-                child: Row(children: [
-                  Icon(Icons.rocket_launch_rounded, size: 16, color: AppColors.cta),
-                  SizedBox(width: 8),
-                  Text('Booster', style: TextStyle(color: AppColors.cta)),
-                ]),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.rocket_launch_rounded,
+                      size: 16,
+                      color: AppColors.cta,
+                    ),
+                    SizedBox(width: 8),
+                    Text('Booster', style: TextStyle(color: AppColors.cta)),
+                  ],
+                ),
               ),
               const PopupMenuItem(
                 value: 'delete',
-                child: Row(children: [
-                  Icon(Icons.delete_outline_rounded, size: 16, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text('Supprimer', style: TextStyle(color: Colors.red)),
-                ]),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.delete_outline_rounded,
+                      size: 16,
+                      color: Colors.red,
+                    ),
+                    SizedBox(width: 8),
+                    Text('Supprimer', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
               ),
             ],
           ),
@@ -1041,29 +1221,37 @@ class _ResellerLinkCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(link.dealTitle,
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  color: AppColors.primary)),
+          Text(
+            link.dealTitle,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              color: AppColors.primary,
+            ),
+          ),
           const SizedBox(height: 8),
           // URL copiable
           Row(
             children: [
               Expanded(
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.background,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: const Color(0xFFE5E7EB)),
                   ),
-                  child: Text(link.shortUrl,
-                      style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF1565C0),
-                          fontWeight: FontWeight.w500)),
+                  child: Text(
+                    link.shortUrl,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF1565C0),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1075,8 +1263,11 @@ class _ResellerLinkCard extends StatelessWidget {
                     color: AppColors.primary.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.copy_rounded,
-                      size: 18, color: AppColors.primary),
+                  child: const Icon(
+                    Icons.copy_rounded,
+                    size: 18,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
             ],
@@ -1084,17 +1275,24 @@ class _ResellerLinkCard extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              _LinkStat(icon: Icons.touch_app_rounded,
-                  label: '${link.clicks} clics'),
+              _LinkStat(
+                icon: Icons.touch_app_rounded,
+                label: '${link.clicks} clics',
+              ),
               const SizedBox(width: 16),
-              _LinkStat(icon: Icons.check_circle_outline,
-                  label: '${link.sales} ventes'),
+              _LinkStat(
+                icon: Icons.check_circle_outline,
+                label: '${link.sales} ventes',
+              ),
               const Spacer(),
-              Text('+ ${link.commission} FCFA',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: Color(0xFF2E7D32))),
+              Text(
+                '+ ${link.commission} FCFA',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Color(0xFF2E7D32),
+                ),
+              ),
             ],
           ),
         ],
@@ -1132,41 +1330,60 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: EdgeInsets.fromLTRB(
-            20, 16, 20, MediaQuery.of(context).padding.bottom + 20),
+          20,
+          16,
+          20,
+          MediaQuery.of(context).padding.bottom + 20,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
-              child: Container(width: 40, height: 4,
-                  decoration: BoxDecoration(
-                      color: const Color(0xFFE5E7EB),
-                      borderRadius: BorderRadius.circular(2))),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5E7EB),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
             ),
             const SizedBox(height: 20),
-            const Text('Retrait de fonds',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary)),
+            const Text(
+              'Retrait de fonds',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text('Solde disponible : ${_fmt(widget.balance)}',
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 13)),
+            Text(
+              'Solde disponible : ${_fmt(widget.balance)}',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+              ),
+            ),
             const SizedBox(height: 20),
-            const Text('Méthode',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: AppColors.primary)),
+            const Text(
+              'Méthode',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.primary,
+              ),
+            ),
             const SizedBox(height: 10),
             Row(
               children: ['MTN MoMo', 'Orange Money'].map((m) {
@@ -1182,29 +1399,34 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
                         color: sel ? AppColors.primary : AppColors.background,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                            color: sel
-                                ? AppColors.primary
-                                : const Color(0xFFE5E7EB)),
+                          color: sel
+                              ? AppColors.primary
+                              : const Color(0xFFE5E7EB),
+                        ),
                       ),
-                      child: Text(m,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                              color: sel
-                                  ? Colors.white
-                                  : AppColors.textSecondary)),
+                      child: Text(
+                        m,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: sel ? Colors.white : AppColors.textSecondary,
+                        ),
+                      ),
                     ),
                   ),
                 );
               }).toList(),
             ),
             const SizedBox(height: 20),
-            const Text('Montant (FCFA)',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: AppColors.primary)),
+            const Text(
+              'Montant (FCFA)',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.primary,
+              ),
+            ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _amountCtl,
@@ -1214,26 +1436,33 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
                 hintText: 'Ex: 10 000',
                 suffixText: 'FCFA',
                 suffixStyle: const TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.primary),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 filled: true,
                 fillColor: AppColors.background,
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none),
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
                 enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
                 focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        const BorderSide(color: AppColors.cta, width: 2)),
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.cta, width: 2),
+                ),
               ),
               style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary),
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -1243,7 +1472,8 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.cta,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   elevation: 0,
                 ),
                 onPressed: _loading
@@ -1253,23 +1483,37 @@ class _WithdrawSheetState extends State<_WithdrawSheet> {
                         await Future.delayed(const Duration(seconds: 1));
                         if (context.mounted) {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: const Text('Demande envoyée ! Traitement sous 24h.'),
-                            backgroundColor: const Color(0xFF2E7D32),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            margin: const EdgeInsets.all(16),
-                          ));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text(
+                                'Demande envoyée ! Traitement sous 24h.',
+                              ),
+                              backgroundColor: const Color(0xFF2E7D32),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              margin: const EdgeInsets.all(16),
+                            ),
+                          );
                         }
                       },
                 child: _loading
-                    ? const SizedBox(width: 22, height: 22,
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Text('Confirmer le retrait',
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Confirmer le retrait',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -1300,9 +1544,10 @@ class _HeaderChip extends StatelessWidget {
         children: [
           Icon(icon, color: Colors.white70, size: 14),
           const SizedBox(width: 6),
-          Text(label,
-              style:
-                  const TextStyle(color: Colors.white70, fontSize: 12)),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
         ],
       ),
     );
@@ -1316,8 +1561,12 @@ class _KpiCard extends StatelessWidget {
   final bool deltaUp;
 
   const _KpiCard({
-    required this.label, required this.value, required this.delta,
-    required this.icon, required this.color, required this.bg,
+    required this.label,
+    required this.value,
+    required this.delta,
+    required this.icon,
+    required this.color,
+    required this.bg,
     required this.deltaUp,
   });
 
@@ -1329,37 +1578,60 @@ class _KpiCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)],
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 34, height: 34,
-              decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Icon(icon, color: color, size: 18),
             ),
             const SizedBox(height: 10),
-            Text(value,
-                style: TextStyle(
-                    fontWeight: FontWeight.w900, fontSize: 18, color: color)),
-            const SizedBox(height: 2),
-            Text(label,
-                style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-            const SizedBox(height: 4),
-            Row(children: [
-              Icon(
-                deltaUp ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                size: 11,
-                color: deltaUp ? const Color(0xFF2E7D32) : Colors.red,
+            Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 18,
+                color: color,
               ),
-              const SizedBox(width: 2),
-              Text(delta,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(
+                  deltaUp
+                      ? Icons.arrow_upward_rounded
+                      : Icons.arrow_downward_rounded,
+                  size: 11,
+                  color: deltaUp ? const Color(0xFF2E7D32) : Colors.red,
+                ),
+                const SizedBox(width: 2),
+                Text(
+                  delta,
                   style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: deltaUp ? const Color(0xFF2E7D32) : Colors.red)),
-            ]),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: deltaUp ? const Color(0xFF2E7D32) : Colors.red,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -1370,7 +1642,11 @@ class _KpiCard extends StatelessWidget {
 class _WalletDetail extends StatelessWidget {
   final String label, value;
   final IconData icon;
-  const _WalletDetail({required this.label, required this.value, required this.icon});
+  const _WalletDetail({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1379,12 +1655,19 @@ class _WalletDetail extends StatelessWidget {
         children: [
           Icon(icon, color: Colors.white54, size: 16),
           const SizedBox(height: 4),
-          Text(value,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-          Text(label,
-              style: const TextStyle(color: Colors.white54, fontSize: 10),
-              textAlign: TextAlign.center),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white54, fontSize: 10),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
@@ -1394,7 +1677,11 @@ class _WalletDetail extends StatelessWidget {
 class _StatBig extends StatelessWidget {
   final String label, value;
   final Color color;
-  const _StatBig({required this.label, required this.value, required this.color});
+  const _StatBig({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1404,18 +1691,29 @@ class _StatBig extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)],
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(value,
-                style: TextStyle(
-                    fontWeight: FontWeight.w900, fontSize: 24, color: color)),
+            Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 24,
+                color: color,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 11, color: AppColors.textSecondary)),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+            ),
           ],
         ),
       ),
@@ -1442,19 +1740,25 @@ class _TopDealRow extends StatelessWidget {
           const Icon(Icons.trending_up_rounded, color: AppColors.cta, size: 18),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(deal.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: AppColors.primary)),
-          ),
-          Text('${deal.views} vues',
+            child: Text(
+              deal.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textSecondary)),
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+          Text(
+            '${deal.views} vues',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -1465,7 +1769,12 @@ class _ResellerStat extends StatelessWidget {
   final String label, value;
   final IconData icon;
   final Color color;
-  const _ResellerStat({required this.label, required this.value, required this.icon, required this.color});
+  const _ResellerStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1481,14 +1790,24 @@ class _ResellerStat extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 20),
             const SizedBox(height: 6),
-            Text(value,
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 14, color: color),
-                textAlign: TextAlign.center),
+            Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: color,
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 2),
-            Text(label,
-                style: const TextStyle(fontSize: 9, color: AppColors.textSecondary),
-                textAlign: TextAlign.center),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 9,
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
@@ -1507,9 +1826,10 @@ class _LinkStat extends StatelessWidget {
       children: [
         Icon(icon, size: 13, color: AppColors.textSecondary),
         const SizedBox(width: 4),
-        Text(label,
-            style: const TextStyle(
-                fontSize: 12, color: AppColors.textSecondary)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
       ],
     );
   }
@@ -1526,9 +1846,10 @@ class _MiniStat extends StatelessWidget {
       children: [
         Icon(icon, size: 12, color: AppColors.textSecondary),
         const SizedBox(width: 3),
-        Text(value,
-            style: const TextStyle(
-                fontSize: 11, color: AppColors.textSecondary)),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+        ),
       ],
     );
   }
@@ -1537,8 +1858,12 @@ class _MiniStat extends StatelessWidget {
 class _HowItWorksStep extends StatelessWidget {
   final String step, title, subtitle;
   final Color color;
-  const _HowItWorksStep(
-      {required this.step, required this.title, required this.subtitle, required this.color});
+  const _HowItWorksStep({
+    required this.step,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1548,14 +1873,18 @@ class _HowItWorksStep extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 32, height: 32,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             child: Center(
-              child: Text(step,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14)),
+              child: Text(
+                step,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -1563,17 +1892,23 @@ class _HowItWorksStep extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: AppColors.primary)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: AppColors.primary,
+                  ),
+                ),
                 const SizedBox(height: 3),
-                Text(subtitle,
-                    style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                        height: 1.4)),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1594,16 +1929,190 @@ class _TipRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('• ',
-              style: TextStyle(
-                  color: AppColors.accent, fontWeight: FontWeight.bold)),
+          const Text(
+            '• ',
+            style: TextStyle(
+              color: AppColors.accent,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           Expanded(
-            child: Text(text,
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.primary, height: 1.4)),
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.primary,
+                height: 1.4,
+              ),
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  Widget : Score de performance IA
+// ═══════════════════════════════════════════════
+class _AiScoreCard extends StatelessWidget {
+  final double score; // taux de conversion %
+  final int totalViews;
+  final int totalContacts;
+
+  const _AiScoreCard({
+    required this.score,
+    required this.totalViews,
+    required this.totalContacts,
+  });
+
+  String get _level {
+    if (score >= 7) return 'Excellent';
+    if (score >= 5) return 'Bon';
+    if (score >= 3) return 'Moyen';
+    return 'À améliorer';
+  }
+
+  Color get _levelColor {
+    if (score >= 7) return AppColors.success;
+    if (score >= 5) return AppColors.info;
+    if (score >= 3) return AppColors.cta;
+    return AppColors.error;
+  }
+
+  int get _scoreInt => (score * 10).clamp(0, 100).round();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: AppColors.gradientAi,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: AppColors.shadowAi,
+      ),
+      child: Row(
+        children: [
+          // Score circulaire
+          SizedBox(
+            width: 72,
+            height: 72,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CircularProgressIndicator(
+                  value: _scoreInt / 100,
+                  strokeWidth: 6,
+                  backgroundColor: Colors.white.withOpacity(0.2),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '$_scoreInt',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      '/100',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 9,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Score Vendeur IA',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _levelColor.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: _levelColor.withOpacity(0.5)),
+                      ),
+                      child: Text(
+                        _level,
+                        style: TextStyle(
+                          color: _levelColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _ScoreStat(
+                      label: 'Vues',
+                      value: totalViews >= 1000
+                          ? '${(totalViews / 1000).toStringAsFixed(1)}k'
+                          : '$totalViews',
+                    ),
+                    const SizedBox(width: 16),
+                    _ScoreStat(label: 'Contacts', value: '$totalContacts'),
+                    const SizedBox(width: 16),
+                    _ScoreStat(label: 'Conversion', value: '$score%'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScoreStat extends StatelessWidget {
+  final String label;
+  final String value;
+  const _ScoreStat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 10),
+        ),
+      ],
     );
   }
 }

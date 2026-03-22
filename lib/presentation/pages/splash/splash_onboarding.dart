@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_colors.dart';
 import '../auth/auth_flow.dart';
+import '../home/main_navigation_page.dart';
 
 // ─────────────────────────────────────────────
 //  SPLASH SCREEN
@@ -53,15 +55,14 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    _textOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _textController, curve: Curves.easeIn),
-    );
+    _textOpacity = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _textController, curve: Curves.easeIn));
     _textSlide = Tween<Offset>(
       begin: const Offset(0, 0.4),
       end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _textController, curve: Curves.easeOut),
-    );
+    ).animate(CurvedAnimation(parent: _textController, curve: Curves.easeOut));
 
     // ── Dots chargement ──
     _dotController = AnimationController(
@@ -85,17 +86,34 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
-    // Vérifier si l'onboarding a déjà été vu
-    // TODO: final seen = await SharedPreferences.getInstance().then((p) => p.getBool('onboarding_seen') ?? false);
-    const bool onboardingSeen = false; // remplacer par SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final bool onboardingSeen = prefs.getBool('onboarding_seen') ?? false;
+    final String? accessToken = prefs.getString('access_token');
+    final String? userId = prefs.getString('user_id');
+    final bool isGuest = prefs.getBool('is_guest') ?? false;
 
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
+    // Determiner la destination
+    Widget destination;
+    if (!onboardingSeen) {
+      destination = const OnboardingPage();
+    } else if (accessToken != null &&
+        accessToken.isNotEmpty &&
+        userId != null) {
+      // Session connectée
+      destination = const MainNavigationPage();
+    } else if (isGuest) {
+      // Mode invité
+      destination = const MainNavigationPage();
+    } else {
+      destination = const AuthWelcomePage();
+    }
 
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) =>
-            onboardingSeen ? const AuthWelcomePage() : const OnboardingPage(),
+        pageBuilder: (_, __, ___) => destination,
         transitionsBuilder: (_, anim, __, child) =>
             FadeTransition(opacity: anim, child: child),
         transitionDuration: const Duration(milliseconds: 500),
@@ -191,10 +209,7 @@ class _SplashScreenState extends State<SplashScreen>
               animation: _textController,
               builder: (_, child) => FadeTransition(
                 opacity: _textOpacity,
-                child: SlideTransition(
-                  position: _textSlide,
-                  child: child,
-                ),
+                child: SlideTransition(position: _textSlide, child: child),
               ),
               child: const Text(
                 'Les meilleures affaires d\'Afrique centrale',
@@ -220,7 +235,10 @@ class _SplashScreenState extends State<SplashScreen>
                       animation: _dotController,
                       builder: (_, __) {
                         final delay = i * 0.2;
-                        final val = ((_dotController.value - delay).clamp(0.0, 1.0));
+                        final val = ((_dotController.value - delay).clamp(
+                          0.0,
+                          1.0,
+                        ));
                         return Container(
                           margin: const EdgeInsets.symmetric(horizontal: 4),
                           width: 6,
@@ -342,13 +360,13 @@ class _OnboardingPageState extends State<OnboardingPage>
         curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
       ),
     );
-    _textSlide = Tween<Offset>(
-      begin: const Offset(0, 0.5),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
-    ));
+    _textSlide = Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _slideController,
+            curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
+          ),
+        );
     _textOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _slideController,
@@ -380,8 +398,10 @@ class _OnboardingPageState extends State<OnboardingPage>
     }
   }
 
-  void _goToAuth() {
-    // TODO: await SharedPreferences.getInstance().then((p) => p.setBool('onboarding_seen', true));
+  Future<void> _goToAuth() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_seen', true);
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
@@ -480,7 +500,9 @@ class _OnboardingPageState extends State<OnboardingPage>
                         width: isActive ? 24 : 8,
                         height: 8,
                         decoration: BoxDecoration(
-                          color: isActive ? AppColors.cta : const Color(0xFFDDE1E7),
+                          color: isActive
+                              ? AppColors.cta
+                              : const Color(0xFFDDE1E7),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       );
@@ -555,7 +577,11 @@ class _OnboardingPageState extends State<OnboardingPage>
                 color: data.iconBg,
                 shape: BoxShape.circle,
               ),
-              child: Icon(data.icon, size: size.width * 0.28, color: data.iconColor),
+              child: Icon(
+                data.icon,
+                size: size.width * 0.28,
+                color: data.iconColor,
+              ),
             ),
           ),
 
